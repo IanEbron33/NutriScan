@@ -301,3 +301,409 @@ export const Sparkles: React.FC<IconProps> = ({
   </Svg>
 );
 
+export const Dumbbell: React.FC<IconProps> = ({
+  size = 24,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="m6.5 6.5 11 11M21 21l-1-1a3 3 0 0 0-4.24 0l-.88.88a3 3 0 0 1-4.24 0l-5.76-5.76a3 3 0 0 1 0-4.24l.88-.88a3 3 0 0 0 0-4.24L5 5m14 14-3.5-3.5M8.5 8.5 5 5"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const TrendingDown: React.FC<IconProps> = ({
+  size = 24,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="m22 17-8.5-8.5-5 5L2 7"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M16 17h6v-6"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Scale: React.FC<IconProps> = ({
+  size = 24,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Leaf: React.FC<IconProps> = ({
+  size = 24,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const ArrowRight: React.FC<IconProps> = ({
+  size = 20,
+  color = '#FFFFFF',
+  strokeWidth = 2.5,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M5 12h14M12 5l7 7-7 7"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const ArrowLeft: React.FC<IconProps> = ({
+  size = 20,
+  color = '#2A1810',
+  strokeWidth = 2.5,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M19 12H5M12 19l-7-7 7-7"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Check: React.FC<IconProps> = ({
+  size = 18,
+  color = '#FF5B00',
+  strokeWidth = 2.5,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M20 6 9 17l-5-5"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const UserIcon: React.FC<IconProps> = ({
+  size = 20,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Circle cx="12" cy="7" r="4" stroke={color} strokeWidth={strokeWidth} />
+  </Svg>
+);
+
+export const Activity: React.FC<IconProps> = ({
+  size = 20,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M22 12h-4l-3 9L9 3l-3 9H2"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const X: React.FC<IconProps> = ({
+  size = 20,
+  color = '#2A1810',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M18 6 6 18M6 6l12 12"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const MuscleFlex: React.FC<IconProps> = ({
+  size = 24,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M12.409 13.017A5 5 0 0 1 22 15c0 3.866-4 7-9 7-4.077 0-8.153-.82-10.371-2.462-.426-.316-.631-.832-.62-1.362C2.118 12.723 2.627 2 10 2a3 3 0 0 1 3 3 2 2 0 0 1-2 2c-1.105 0-1.64-.444-2-1"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M15 14a5 5 0 0 0-7.584 2"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M9.964 6.825C8.019 7.977 9.5 13 8 15"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Home: React.FC<IconProps> = ({
+  size = 22,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M9 22V12h6v10"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Calendar: React.FC<IconProps> = ({
+  size = 22,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M8 2v4M16 2v4"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Rect
+      width="18"
+      height="18"
+      x="3"
+      y="4"
+      rx="2"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M3 10h18"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Droplet: React.FC<IconProps> = ({
+  size = 20,
+  color = '#F39C12',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-6-1.5-1.5-3-3.2-4-5-1 1.8-2.5 3.5-4 5-2 2.1-3 4-3 6a7 7 0 0 0 7 7z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const AlertTriangle: React.FC<IconProps> = ({
+  size = 18,
+  color = '#C62828',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Line
+      x1="12"
+      x2="12"
+      y1="9"
+      y2="13"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+    />
+    <Line
+      x1="12"
+      x2="12.01"
+      y1="17"
+      y2="17"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+export const Plus: React.FC<IconProps> = ({
+  size = 20,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M5 12h14M12 5v14"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Eye: React.FC<IconProps> = ({
+  size = 20,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Circle cx="12" cy="12" r="3" stroke={color} strokeWidth={strokeWidth} />
+  </Svg>
+);
+
+export const Zap: React.FC<IconProps> = ({
+  size = 16,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const ImageIcon: React.FC<IconProps> = ({
+  size = 20,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Rect width="18" height="18" x="3" y="3" rx="2" ry="2" stroke={color} strokeWidth={strokeWidth} />
+    <Circle cx="9" cy="9" r="2" stroke={color} strokeWidth={strokeWidth} />
+    <Path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+

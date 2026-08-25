@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
+import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../services/supabase';
 import { configureGoogleSignIn, signInWithGoogle as performGoogleSignIn, signOutGoogle } from '../services/googleAuth';
 import { Profile } from '../types/database';
@@ -15,6 +16,7 @@ interface AuthContextType {
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  completeOnboarding: (data: Partial<Profile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,27 +30,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (currentUser: User) => {
     try {
+      // 1. Check local device SecureStore cache
+      let localOnboarded = false;
+      let localData: Partial<Profile> | null = null;
+      try {
+        const cached = await SecureStore.getItemAsync(`nutriscan_onboarded_${currentUser.id}`);
+        if (cached) {
+          localData = JSON.parse(cached);
+          localOnboarded = localData?.is_onboarded ?? false;
+        }
+      } catch (storeErr) {
+        console.warn('Could not read secure store cache:', storeErr);
+      }
+
+      // 2. Query Supabase profiles table
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', currentUser.id)
         .single();
 
+      const meta = currentUser.user_metadata || {};
+      const cloudOnboarded = meta.is_onboarded === true;
+      const dbOnboarded = data?.is_onboarded === true;
+      const isOnboarded = dbOnboarded || cloudOnboarded || localOnboarded;
+
       if (data && !error) {
-        setProfile(data as Profile);
+        setProfile({
+          ...(data as Profile),
+          is_onboarded: isOnboarded,
+          daily_calorie_target: data.daily_calorie_target || meta.daily_calorie_target || localData?.daily_calorie_target || 2400,
+          daily_protein_target: data.daily_protein_target || meta.daily_protein_target || localData?.daily_protein_target || 120,
+          daily_carbs_target: data.daily_carbs_target || meta.daily_carbs_target || localData?.daily_carbs_target || 250,
+          daily_fat_target: data.daily_fat_target || meta.daily_fat_target || localData?.daily_fat_target || 70,
+        });
       } else {
-        // Fallback to Google metadata if profile record is still provisioning
-        const meta = currentUser.user_metadata || {};
+        // Fallback to Google / Auth metadata and SecureStore cache
         setProfile({
           id: currentUser.id,
           email: currentUser.email || null,
           full_name: meta.full_name || meta.name || currentUser.email?.split('@')[0] || 'User',
           avatar_url: meta.avatar_url || meta.picture || null,
-          daily_calorie_target: 2400,
-          daily_protein_target: 120,
-          daily_carbs_target: 250,
-          daily_fat_target: 70,
-          streak_days: 12,
+          is_onboarded: isOnboarded,
+          daily_calorie_target: meta.daily_calorie_target || localData?.daily_calorie_target || 2400,
+          daily_protein_target: meta.daily_protein_target || localData?.daily_protein_target || 120,
+          daily_carbs_target: meta.daily_carbs_target || localData?.daily_carbs_target || 250,
+          daily_fat_target: meta.daily_fat_target || localData?.daily_fat_target || 70,
+          gender: meta.gender || localData?.gender,
+          age: meta.age || localData?.age,
+          height_cm: meta.height_cm || localData?.height_cm,
+          weight_kg: meta.weight_kg || localData?.weight_kg,
+          activity_level: meta.activity_level || localData?.activity_level,
+          primary_goal: meta.primary_goal || localData?.primary_goal,
+          streak_days: 1,
         });
       }
     } catch (err) {
@@ -141,6 +175,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const completeOnboarding = async (onboardingData: Partial<Profile>) => {
+    if (!user) return;
+    const updatedPayload: Partial<Profile> = {
+      ...onboardingData,
+      is_onboarded: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    // 1. Layer 1: Cloud Auth User Metadata (Permanent across all devices & logins)
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          is_onboarded: true,
+          gender: onboardingData.gender,
+          age: onboardingData.age,
+          height_cm: onboardingData.height_cm,
+          weight_kg: onboardingData.weight_kg,
+          activity_level: onboardingData.activity_level,
+          primary_goal: onboardingData.primary_goal,
+          daily_calorie_target: onboardingData.daily_calorie_target,
+          daily_protein_target: onboardingData.daily_protein_target,
+          daily_carbs_target: onboardingData.daily_carbs_target,
+          daily_fat_target: onboardingData.daily_fat_target,
+        },
+      });
+    } catch (authErr) {
+      console.warn('Could not update user cloud auth metadata:', authErr);
+    }
+
+    // 2. Layer 2: Local Device SecureStore Cache (Immediate and offline-resilient)
+    try {
+      await SecureStore.setItemAsync(
+        `nutriscan_onboarded_${user.id}`,
+        JSON.stringify({ is_onboarded: true, ...onboardingData })
+      );
+    } catch (storeErr) {
+      console.warn('Could not write to secure store:', storeErr);
+    }
+
+    // 3. Layer 3: Database Table Upsert
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          email: user.email,
+          full_name: profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0],
+          avatar_url: profile?.avatar_url || user.user_metadata?.avatar_url,
+          ...updatedPayload,
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setProfile(data as Profile);
+      } else {
+        setProfile((prev) => (prev ? { ...prev, ...updatedPayload, is_onboarded: true } : null));
+      }
+    } catch (err) {
+      console.warn('Error completing onboarding in database:', err);
+      setProfile((prev) => (prev ? { ...prev, ...updatedPayload, is_onboarded: true } : null));
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -154,6 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUpWithEmail,
         signOut,
         refreshProfile,
+        completeOnboarding,
       }}
     >
       {children}

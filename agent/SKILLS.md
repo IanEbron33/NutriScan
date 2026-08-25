@@ -12,3 +12,4 @@
 1. Always provide up to 3 or more options or recommendations when we are implementing or modifying something.
 2. Always create implementation plan before implementing something.
 3. Always install those dependencies when you are implementing something.
+4. Always read the `MEMORY.md` once per session.

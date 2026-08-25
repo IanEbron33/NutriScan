@@ -14,7 +14,6 @@ import {
   ScanLine,
   PieChart,
   Target,
-  ShieldCheck,
   Sparkles,
 } from '../components/ui/LucideIcons';
 
@@ -73,13 +72,6 @@ export const AuthScreen: React.FC = () => {
               onPress={handleGoogleSignIn}
               isLoading={isGoogleLoading}
             />
-
-            <View style={styles.trustBadge}>
-              <ShieldCheck size={15} color="#2E7D32" />
-              <Text style={styles.trustBadgeText}>
-                1-Tap Instant Sign-In • No Password Needed
-              </Text>
-            </View>
           </View>
 
           {/* Error Notification */}
@@ -276,23 +268,6 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 20,
     alignItems: 'center',
-  },
-  trustBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-    backgroundColor: '#F3FAF4',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D7EED9',
-  },
-  trustBadgeText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#2E7D32',
   },
   errorBox: {
     backgroundColor: '#FFEBEE',
