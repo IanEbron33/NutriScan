@@ -61,8 +61,25 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            {/* Dish Image & Name */}
-            {result.image_uri ? (
+            {/* Dish Image(s) & Name */}
+            {result.image_uris && result.image_uris.length > 1 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.multiImagesScroll}
+              >
+                {result.image_uris.map((uri, idx) => (
+                  <View key={idx} style={styles.multiImageCard}>
+                    <Image source={{ uri }} style={styles.multiThumb} resizeMode="cover" />
+                    <View style={styles.multiImageTag}>
+                      <Text style={styles.multiImageTagText}>
+                        {idx === 0 ? 'Main Plate' : idx === 1 ? 'Depth Angle' : 'Drink / Side'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : result.image_uri ? (
               <Image source={{ uri: result.image_uri }} style={styles.dishImage} resizeMode="cover" />
             ) : (
               <View style={styles.imagePlaceholder}>
@@ -222,6 +239,37 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 16,
+  },
+  multiImagesScroll: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  multiImageCard: {
+    width: 140,
+    height: 120,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1.5,
+    borderColor: '#EFE7DF',
+  },
+  multiThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  multiImageTag: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  multiImageTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#2A1810',
   },
   dishImage: {
     width: '100%',

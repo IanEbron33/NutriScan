@@ -30,6 +30,7 @@ import {
   Camera,
   UserIcon,
   LogOut,
+  Plus,
 } from '../components/ui/LucideIcons';
 
 const { width } = Dimensions.get('window');
@@ -38,7 +39,7 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export const DashboardScreen: React.FC = () => {
   const { user, profile, signOut } = useAuth();
-  const { todayCalories, todayProtein, todayCarbs, todayFat, todayMicros } = useNutrition();
+  const { todayCalories, todayProtein, todayCarbs, todayFat, todayMicros, loggedMeals } = useNutrition();
 
   const [activeTab, setActiveTab] = useState<'home' | 'diary' | 'scan' | 'insights' | 'profile'>('home');
   const [showSignOutModal, setShowSignOutModal] = useState(false);
@@ -368,6 +369,115 @@ export const DashboardScreen: React.FC = () => {
                 </Text>
               </View>
             </ScrollView>
+          </View>
+
+          {/* 6. Today's Meals Dynamic Timeline */}
+          <View style={styles.mealsSection}>
+            <View style={styles.mealsHeaderRow}>
+              <Text style={styles.mealsSectionTitle}>Today's Meals</Text>
+              {loggedMeals.length > 0 && (
+                <Text style={styles.mealsCountBadge}>
+                  {loggedMeals.length} {loggedMeals.length === 1 ? 'Meal' : 'Meals'}
+                </Text>
+              )}
+            </View>
+
+            {loggedMeals.length === 0 ? (
+              /* Empty State: Clean Dashed Prompt Button */
+              <TouchableOpacity
+                style={styles.dashedLogButton}
+                onPress={() => setIsScannerOpen(true)}
+                activeOpacity={0.75}
+              >
+                <View style={styles.dashedIconBox}>
+                  <Plus size={18} color="#FF5B00" strokeWidth={2.5} />
+                </View>
+                <View style={styles.dashedTextCol}>
+                  <Text style={styles.dashedButtonTitle}>Log Your First Meal</Text>
+                  <Text style={styles.dashedButtonSubtitle}>
+                    Scan food with camera or enter macros manually
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              /* Active Dynamic Timeline */
+              <View style={styles.timelineContainer}>
+                {/* Vertical connecting line on left */}
+                <View style={styles.timelineVerticalTrack} pointerEvents="none" />
+
+                {loggedMeals.map((meal, index) => (
+                  <View key={meal.id || index} style={styles.timelineItemRow}>
+                    {/* Orange Dot Marker */}
+                    <View style={styles.timelineDotOuter}>
+                      <View style={styles.timelineDotInner} />
+                    </View>
+
+                    {/* Meal Card */}
+                    <View style={styles.mealCard}>
+                      {meal.image_uri ? (
+                        <Image
+                          source={{ uri: meal.image_uri }}
+                          style={styles.mealCardThumb}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={styles.mealCardThumbPlaceholder}>
+                          <UtensilsCrossed size={18} color="#FF5B00" />
+                        </View>
+                      )}
+
+                      <View style={styles.mealCardInfo}>
+                        <Text style={styles.mealCardTitle} numberOfLines={1}>
+                          {meal.dish_name}
+                        </Text>
+                        <Text style={styles.mealCardTime}>
+                          {meal.source === 'ai_scan' ? 'AI Scan' : 'Manual'} • {meal.logged_at}
+                        </Text>
+                        <View style={styles.mealCardMacroTags}>
+                          <View style={styles.macroTag}>
+                            <Text style={[styles.macroTagText, { color: '#E54D42' }]}>
+                              {meal.protein_g}g P
+                            </Text>
+                          </View>
+                          <View style={styles.macroTag}>
+                            <Text style={[styles.macroTagText, { color: '#F39C12' }]}>
+                              {meal.carbs_g}g C
+                            </Text>
+                          </View>
+                          <View style={styles.macroTag}>
+                            <Text style={[styles.macroTagText, { color: '#8B5A2B' }]}>
+                              {meal.fat_g}g F
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.mealCardCalorieCol}>
+                        <Text style={styles.mealCardCalorieNumber}>{meal.calories}</Text>
+                        <Text style={styles.mealCardCalorieUnit}>kcal</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Dashed button below the active list */}
+                <TouchableOpacity
+                  style={[styles.dashedLogButton, { marginTop: 12 }]}
+                  onPress={() => setIsScannerOpen(true)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.dashedIconBox}>
+                    <Plus size={16} color="#FF5B00" strokeWidth={2.5} />
+                  </View>
+                  <View style={styles.dashedTextCol}>
+                    <Text style={styles.dashedButtonTitle}>Log Next Meal</Text>
+                    <Text style={styles.dashedButtonSubtitle}>
+                      Snap a dish to update daily intake
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </Animated.View>
       </ScrollView>
@@ -783,7 +893,188 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
 
-  // 6. 5-Tab Floating Bottom Navigation Bar
+  // 6. Today's Meals Dynamic Section & Timeline
+  mealsSection: {
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  mealsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  mealsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#2A1810',
+  },
+  mealsCountBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF5B00',
+    backgroundColor: '#FFF0E6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FFDBC2',
+  },
+  dashedLogButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: '#FFDBC2',
+    borderStyle: 'dashed',
+    gap: 12,
+  },
+  dashedIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dashedTextCol: {
+    flex: 1,
+  },
+  dashedButtonTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#2A1810',
+  },
+  dashedButtonSubtitle: {
+    fontSize: 12,
+    color: '#8C7B73',
+    marginTop: 1,
+  },
+  dashedLogNextText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FF5B00',
+  },
+
+  // Timeline & Items
+  timelineContainer: {
+    position: 'relative',
+    paddingLeft: 18,
+  },
+  timelineVerticalTrack: {
+    position: 'absolute',
+    left: 7,
+    top: 14,
+    bottom: 24,
+    width: 2,
+    backgroundColor: '#FFDBC2',
+  },
+  timelineItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  timelineDotOuter: {
+    position: 'absolute',
+    left: -18,
+    top: 24,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFF0E6',
+    borderWidth: 2,
+    borderColor: '#FF5B00',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  timelineDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FF5B00',
+  },
+  mealCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#EFE7DF',
+    gap: 12,
+    shadowColor: '#2A1810',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  mealCardThumb: {
+    width: 54,
+    height: 54,
+    borderRadius: 14,
+  },
+  mealCardThumbPlaceholder: {
+    width: 54,
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFDBC2',
+  },
+  mealCardInfo: {
+    flex: 1,
+  },
+  mealCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#2A1810',
+    marginBottom: 2,
+  },
+  mealCardTime: {
+    fontSize: 11.5,
+    color: '#8C7B73',
+    marginBottom: 6,
+  },
+  mealCardMacroTags: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  macroTag: {
+    backgroundColor: '#FAF6F0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#EFE7DF',
+  },
+  macroTagText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  mealCardCalorieCol: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    paddingRight: 4,
+  },
+  mealCardCalorieNumber: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#8B4513',
+  },
+  mealCardCalorieUnit: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#8C7B73',
+  },
+
+  // 7. 5-Tab Floating Bottom Navigation Bar
   tabBarContainer: {
     position: 'absolute',
     bottom: 0,

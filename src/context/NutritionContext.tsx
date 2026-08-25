@@ -36,15 +36,15 @@ interface NutritionContextType {
 const NutritionContext = createContext<NutritionContextType | undefined>(undefined);
 
 export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Baseline initial metrics matching screenshot mockup (~1,648 kcal, 85g Protein, 190g Carbs, 52g Fat)
-  const [todayCalories, setTodayCalories] = useState<number>(1648);
-  const [todayProtein, setTodayProtein] = useState<number>(85);
-  const [todayCarbs, setTodayCarbs] = useState<number>(190);
-  const [todayFat, setTodayFat] = useState<number>(52);
+  // Pure dynamic baseline: starts at 0 and increments strictly with scanned / logged meals
+  const [todayCalories, setTodayCalories] = useState<number>(0);
+  const [todayProtein, setTodayProtein] = useState<number>(0);
+  const [todayCarbs, setTodayCarbs] = useState<number>(0);
+  const [todayFat, setTodayFat] = useState<number>(0);
   const [todayMicros, setTodayMicros] = useState({
-    vitamin_c_mg: 75,
-    iron_mg: 12.5,
-    calcium_mg: 620,
+    vitamin_c_mg: 0,
+    iron_mg: 0,
+    calcium_mg: 0,
   });
   const [loggedMeals, setLoggedMeals] = useState<MealLog[]>([]);
 

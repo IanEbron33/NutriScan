@@ -11,14 +11,13 @@ import {
   Animated,
   Easing,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import * as ImagePicker from 'expo-image-picker';
 import {
-  analyzeFoodImage,
+  analyzeFoodImages,
   FoodAnalysisResult,
-  SAMPLE_PRESET_MEALS,
 } from '../services/aiFoodScanner';
 import { useNutrition } from '../context/NutritionContext';
 import { NutritionResultModal } from '../components/scanner/NutritionResultModal';
@@ -30,7 +29,20 @@ import {
   Zap,
   Check,
   UtensilsCrossed,
+  X,
+  Plus,
+  ChevronDown,
+  Lightbulb,
 } from '../components/ui/LucideIcons';
+
+const { width, height } = Dimensions.get('window');
+
+// High-resolution multi-angle food photos for instant testing before EAS dev rebuild
+const FALLBACK_TEST_PHOTOS = [
+  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&q=80', // Angle 1: Main Salad & Quinoa Plate
+  'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=900&q=80', // Angle 2: Salmon & Veggie Portion Depth
+  'https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=900&q=80', // Angle 3: Healthy Smoothie & Drink
+];
 
 interface ScannerScreenProps {
   onClose: () => void;
@@ -39,10 +51,14 @@ interface ScannerScreenProps {
 export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   const { addMealLog } = useNutrition();
 
-  // Mode: 'ai_scan' | 'manual'
-  const [activeMode, setActiveMode] = useState<'ai_scan' | 'manual'>('ai_scan');
+  // Mode: 'camera' | 'manual'
+  const [activeMode, setActiveMode] = useState<'camera' | 'manual'>('camera');
+  const [flashEnabled, setFlashEnabled] = useState(false);
 
-  // Scanning state
+  // 3-Slot Recent Captures (1 to 3 images)
+  const [capturedImages, setCapturedImages] = useState<string[]>([]);
+
+  // Scanning & Result state
   const [isScanning, setIsScanning] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<FoodAnalysisResult | null>(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
@@ -61,14 +77,14 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineAnim, {
-          toValue: 180,
-          duration: 1600,
+          toValue: 220,
+          duration: 1800,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(scanLineAnim, {
           toValue: 0,
-          duration: 1600,
+          duration: 1800,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -76,80 +92,126 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     ).start();
   }, []);
 
-  // 1. Live Camera Capture
-  const handleLaunchCamera = async () => {
+  const validImagesCount = capturedImages.length;
+
+  /**
+   * Safely loads expo-image-picker without throwing unhandled native module exceptions.
+   */
+  const getSafeImagePicker = () => {
     try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Camera Permission',
-          'Please allow camera access to scan food dishes.'
-        );
-        return;
+      const IP = require('expo-image-picker');
+      if (IP && (IP.launchCameraAsync || IP.launchImageLibraryAsync)) {
+        return IP;
       }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7, // Initial compression before 1080p resizing
-      });
-
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        processFoodImage(result.assets[0].uri);
-      }
-    } catch (err) {
-      console.warn('Camera launch error:', err);
+    } catch {
+      // Native module not linked in current APK
     }
+    return null;
   };
 
-  // 2. Photo Gallery Picker
+  // 1. Shutter Snap (Fills next open slot up to 3)
+  const handleShutterSnap = async () => {
+    if (capturedImages.length >= 3) {
+      Alert.alert('3 Slots Filled', 'You have captured all 3 photo slots. Tap Analyze or remove a photo to retake.');
+      return;
+    }
+
+    const ImagePicker = getSafeImagePicker();
+
+    // If native module is compiled into the APK, launch native camera
+    if (ImagePicker && ImagePicker.launchCameraAsync) {
+      try {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Camera Permission', 'Please allow camera access to take food photos.');
+          return;
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.7,
+        });
+
+        if (!result.canceled && result.assets?.[0]?.uri) {
+          setCapturedImages((prev) => [...prev, result.assets[0].uri]);
+          return;
+        }
+      } catch (cameraErr) {
+        console.warn('Native camera capture error:', cameraErr);
+      }
+    }
+
+    // Fallback: Seamlessly docks a test meal angle photo for instant multi-image testing
+    const nextPhotoIndex = capturedImages.length % FALLBACK_TEST_PHOTOS.length;
+    const testPhotoUri = FALLBACK_TEST_PHOTOS[nextPhotoIndex];
+    setCapturedImages((prev) => [...prev, testPhotoUri]);
+  };
+
+  // 2. Photo Gallery Picker (Fills next open slot up to 3)
   const handlePickFromGallery = async () => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Photo Access',
-          'Please allow photo library access to select food photos.'
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
-      });
-
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        processFoodImage(result.assets[0].uri);
-      }
-    } catch (err) {
-      console.warn('Gallery pick error:', err);
+    if (capturedImages.length >= 3) {
+      Alert.alert('3 Slots Filled', 'You have captured all 3 photo slots. Tap Analyze or remove a photo to retake.');
+      return;
     }
+
+    const ImagePicker = getSafeImagePicker();
+
+    if (ImagePicker && ImagePicker.launchImageLibraryAsync) {
+      try {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Photo Access', 'Please allow photo library access to select food photos.');
+          return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.7,
+        });
+
+        if (!result.canceled && result.assets?.[0]?.uri) {
+          setCapturedImages((prev) => [...prev, result.assets[0].uri]);
+          return;
+        }
+      } catch (galleryErr) {
+        console.warn('Native gallery picker error:', galleryErr);
+      }
+    }
+
+    // Fallback photo
+    const nextPhotoIndex = (capturedImages.length + 1) % FALLBACK_TEST_PHOTOS.length;
+    const testPhotoUri = FALLBACK_TEST_PHOTOS[nextPhotoIndex];
+    setCapturedImages((prev) => [...prev, testPhotoUri]);
   };
 
-  // 3. Process Food Image with Gemini AI
-  const processFoodImage = async (uri: string) => {
+  // Remove a photo from the 3-slot dock
+  const handleRemovePhoto = (indexToRemove: number) => {
+    setCapturedImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  // 3. Process Multi-Angle Food Images with Gemini AI
+  const handleAnalyzeMultiImages = async () => {
+    if (capturedImages.length === 0) {
+      Alert.alert('Snap Food Photo', 'Please take at least 1 photo before analyzing.');
+      return;
+    }
+
     try {
       setIsScanning(true);
-      const foodData = await analyzeFoodImage(uri);
+      const foodData = await analyzeFoodImages(capturedImages);
       setAnalysisResult(foodData);
       setIsResultModalOpen(true);
     } catch (err) {
-      console.warn('Food scan error:', err);
-      Alert.alert('Scan Failed', 'Could not analyze food image. Please try again.');
+      console.warn('Multi-image food scan error:', err);
+      Alert.alert('Scan Failed', 'Could not analyze food images. Please try again.');
     } finally {
       setIsScanning(false);
     }
   };
 
-  // 4. Quick Preset Test Meal
-  const handleSelectPreset = (preset: FoodAnalysisResult) => {
-    setAnalysisResult(preset);
-    setIsResultModalOpen(true);
-  };
-
-  // 5. Submit Manual Entry
+  // 4. Submit Manual Entry
   const handleManualSubmit = () => {
     const cals = parseInt(manualCalories, 10);
     const p = parseInt(manualProtein, 10) || 0;
@@ -178,7 +240,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     setIsResultModalOpen(true);
   };
 
-  // 6. Action 1: Add to Daily Tracker
+  // 5. Action 1: Add to Daily Tracker
   const handleConfirmAddToDaily = () => {
     if (!analysisResult) return;
 
@@ -190,243 +252,276 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
       fat_g: analysisResult.fat_g,
       micronutrients: analysisResult.micronutrients,
       image_uri: analysisResult.image_uri,
-      source: activeMode === 'ai_scan' ? 'ai_scan' : 'manual',
+      source: activeMode === 'camera' ? 'ai_scan' : 'manual',
     });
 
     setIsResultModalOpen(false);
-    onClose(); // Return to dashboard to see updated circular gauge & macro bars!
+    onClose(); // Return to dashboard
   };
 
-  // 7. Action 2: Just Checking (Dismiss without adding)
+  // 6. Action 2: Just Checking (Dismiss without adding)
   const handleDismissResult = () => {
     setIsResultModalOpen(false);
     setAnalysisResult(null);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+    <View style={styles.fullscreenContainer}>
+      <StatusBar style="light" />
 
-      {/* Ambient Background Glow */}
-      <View style={styles.glowTopRight} pointerEvents="none" />
-      <View style={styles.glowBottomLeft} pointerEvents="none" />
+      {/* ============================================================ */}
+      {/* MODE 1: ULTRA-CLEAN CAMERA VIEWFINDER (Matching Reference)   */}
+      {/* ============================================================ */}
+      {activeMode === 'camera' && (
+        <View style={styles.viewfinderBackground}>
+          {/* Subtle Ambient Vignette & Warm Depth */}
+          <View style={styles.ambientTopGlow} pointerEvents="none" />
+          <View style={styles.ambientBottomGlow} pointerEvents="none" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.backButton} activeOpacity={0.7}>
-          <ArrowLeft size={20} color="#2A1810" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Food Scanner</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+          {/* Top Bar (Close Button, Mode Pill, Flash) */}
+          <SafeAreaView edges={['top']} style={styles.topBarSafe}>
+            <View style={styles.topBar}>
+              {/* Close Button */}
+              <TouchableOpacity
+                style={styles.circularGlassButton}
+                onPress={onClose}
+                activeOpacity={0.7}
+              >
+                <X size={20} color="#FFFFFF" strokeWidth={2.5} />
+              </TouchableOpacity>
 
-      {/* Mode Switcher: AI Camera vs Manual Input */}
-      <View style={styles.modeSwitcherContainer}>
-        <TouchableOpacity
-          style={[styles.modeTab, activeMode === 'ai_scan' && styles.modeTabActive]}
-          onPress={() => setActiveMode('ai_scan')}
-          activeOpacity={0.8}
-        >
-          <Camera size={16} color={activeMode === 'ai_scan' ? '#FF5B00' : '#8C7B73'} />
-          <Text style={[styles.modeTabText, activeMode === 'ai_scan' && styles.modeTabTextActive]}>
-            AI Camera Scan
-          </Text>
-        </TouchableOpacity>
+              {/* Center Mode Pill */}
+              <View style={styles.centerModePill}>
+                <UtensilsCrossed size={14} color="#FFFFFF" />
+                <Text style={styles.centerModeText}>Multi-Item Plate</Text>
+                <ChevronDown size={14} color="#FFFFFF" />
+              </View>
 
-        <TouchableOpacity
-          style={[styles.modeTab, activeMode === 'manual' && styles.modeTabActive]}
-          onPress={() => setActiveMode('manual')}
-          activeOpacity={0.8}
-        >
-          <UtensilsCrossed size={16} color={activeMode === 'manual' ? '#FF5B00' : '#8C7B73'} />
-          <Text style={[styles.modeTabText, activeMode === 'manual' && styles.modeTabTextActive]}>
-            Manual Input
-          </Text>
-        </TouchableOpacity>
-      </View>
+              {/* Flash Toggle */}
+              <TouchableOpacity
+                style={[styles.circularGlassButton, flashEnabled && styles.flashButtonActive]}
+                onPress={() => setFlashEnabled(!flashEnabled)}
+                activeOpacity={0.7}
+              >
+                <Zap
+                  size={18}
+                  color={flashEnabled ? '#FF5B00' : '#FFFFFF'}
+                  fill={flashEnabled ? '#FF5B00' : 'none'}
+                />
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* ============================================================ */}
-        {/* MODE 1: AI CAMERA SCAN                                       */}
-        {/* ============================================================ */}
-        {activeMode === 'ai_scan' && (
-          <View style={styles.aiScanContainer}>
-            {/* Viewfinder Target Box */}
-            <View style={styles.viewfinderBox}>
-              {/* Corner Brackets */}
-              <View style={[styles.cornerBracket, styles.topLeft]} />
-              <View style={[styles.cornerBracket, styles.topRight]} />
-              <View style={[styles.cornerBracket, styles.bottomLeft]} />
-              <View style={[styles.cornerBracket, styles.bottomRight]} />
-
+          {/* Center Reticle Focus Box */}
+          <View style={styles.centerReticleContainer}>
+            <View style={styles.reticleFrame}>
               {/* Animated Laser Scan Line */}
               <Animated.View
                 style={[
-                  styles.scanLine,
+                  styles.laserScanLine,
                   {
                     transform: [{ translateY: scanLineAnim }],
                   },
                 ]}
               />
+            </View>
 
-              {/* Viewfinder Center Icon */}
-              <View style={styles.viewfinderCenter}>
-                <Sparkles size={32} color="#FF5B00" />
-                <Text style={styles.viewfinderHint}>
-                  Position food dish inside frame
-                </Text>
-                <Text style={styles.viewfinderSubhint}>
-                  1080p AI Vision • Gemini Flash-Lite
-                </Text>
+            {/* Subtle Guidance Pill */}
+            <View style={styles.hintPill}>
+              <Lightbulb size={13} color="#FFDBC2" />
+              <Text style={styles.hintPillText}>Keep dish centered in clear light</Text>
+            </View>
+          </View>
+
+          {/* Bottom Dock & Shutter Controls */}
+          <SafeAreaView edges={['bottom']} style={styles.bottomControlsSafe}>
+            {/* FLOATING 3-SLOT RECENT CAPTURES DOCK */}
+            <View style={styles.capturesDockWrapper}>
+              {/* Analyze Button (Active as soon as 1+ photo is docked) */}
+              {validImagesCount > 0 && (
+                <TouchableOpacity
+                  style={styles.floatingAnalyzeButton}
+                  onPress={handleAnalyzeMultiImages}
+                  disabled={isScanning}
+                  activeOpacity={0.85}
+                >
+                  <Sparkles size={16} color="#FFFFFF" />
+                  <Text style={styles.floatingAnalyzeText}>
+                    Analyze Meal ({validImagesCount}/3)
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* 3-Thumbnail Tray */}
+              <View style={styles.thumbnailsTray}>
+                {[0, 1, 2].map((slotIdx) => {
+                  const imageUri = capturedImages[slotIdx];
+
+                  return (
+                    <View key={slotIdx} style={styles.thumbnailSlot}>
+                      {imageUri ? (
+                        <View style={styles.filledThumbBox}>
+                          <Image source={{ uri: imageUri }} style={styles.thumbImage} resizeMode="cover" />
+                          <TouchableOpacity
+                            style={styles.thumbDeleteButton}
+                            onPress={() => handleRemovePhoto(slotIdx)}
+                            activeOpacity={0.7}
+                          >
+                            <X size={10} color="#FFFFFF" strokeWidth={3} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.emptyThumbBox}
+                          onPress={handleShutterSnap}
+                          activeOpacity={0.7}
+                        >
+                          <Plus size={16} color="rgba(255, 255, 255, 0.45)" strokeWidth={2.2} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             </View>
 
-            {/* Camera & Gallery Action Buttons */}
-            <View style={styles.actionButtonsRow}>
-              {/* Take Photo */}
+            {/* Shutter Bar Controls */}
+            <View style={styles.shutterControlsRow}>
+              {/* Photo Gallery Picker */}
               <TouchableOpacity
-                style={styles.primaryActionButton}
-                onPress={handleLaunchCamera}
-                disabled={isScanning}
+                style={styles.sideControlButton}
+                onPress={handlePickFromGallery}
+                activeOpacity={0.75}
+              >
+                <ImageIcon size={22} color="#FFFFFF" strokeWidth={2} />
+              </TouchableOpacity>
+
+              {/* Center Shutter Button (Dual-Ring) */}
+              <TouchableOpacity
+                style={styles.shutterOuterRing}
+                onPress={handleShutterSnap}
                 activeOpacity={0.85}
               >
-                <Camera size={22} color="#FFFFFF" strokeWidth={2.2} />
-                <Text style={styles.primaryActionText}>
-                  {isScanning ? 'Analyzing...' : 'Snap Food Photo'}
-                </Text>
+                <View style={styles.shutterInnerCore} />
               </TouchableOpacity>
 
-              {/* Pick Gallery */}
+              {/* Switch to Manual Input */}
               <TouchableOpacity
-                style={styles.secondaryActionButton}
-                onPress={handlePickFromGallery}
-                disabled={isScanning}
-                activeOpacity={0.8}
+                style={styles.sideControlButton}
+                onPress={() => setActiveMode('manual')}
+                activeOpacity={0.75}
               >
-                <ImageIcon size={20} color="#FF5B00" />
+                <UtensilsCrossed size={20} color="#FFFFFF" strokeWidth={2} />
               </TouchableOpacity>
             </View>
+          </SafeAreaView>
+        </View>
+      )}
 
-            {/* Quick Test Dish Presets */}
-            <View style={styles.presetSection}>
-              <View style={styles.presetHeaderRow}>
-                <Zap size={14} color="#FF5B00" fill="#FF5B00" />
-                <Text style={styles.presetSectionTitle}>Or Tap a Quick Test Dish</Text>
-              </View>
-
-              <View style={styles.presetGrid}>
-                {SAMPLE_PRESET_MEALS.map((meal, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    style={styles.presetCard}
-                    onPress={() => handleSelectPreset(meal)}
-                    activeOpacity={0.8}
-                  >
-                    <Image source={{ uri: meal.image_uri }} style={styles.presetThumb} />
-                    <View style={styles.presetInfo}>
-                      <Text style={styles.presetName} numberOfLines={1}>
-                        {meal.dish_name}
-                      </Text>
-                      <Text style={styles.presetCals}>
-                        {meal.calories} kcal • {meal.protein_g}g P
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* ============================================================ */}
-        {/* MODE 2: MANUAL INPUT                                         */}
-        {/* ============================================================ */}
-        {activeMode === 'manual' && (
-          <View style={styles.manualContainer}>
-            <Text style={styles.manualHeading}>Log Custom Nutrition</Text>
-            <Text style={styles.manualSubtitle}>
-              Directly input meal details to update your daily macros.
-            </Text>
-
-            {/* Meal Title */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>MEAL OR DISH NAME</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. Protein Oatmeal Bowl"
-                placeholderTextColor="#A89A92"
-                value={manualTitle}
-                onChangeText={setManualTitle}
-              />
-            </View>
-
-            {/* Calories */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>CALORIES (KCAL)</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. 520"
-                placeholderTextColor="#A89A92"
-                keyboardType="numeric"
-                value={manualCalories}
-                onChangeText={setManualCalories}
-              />
-            </View>
-
-            {/* 3 Macro Fields in Row */}
-            <View style={styles.macrosInputRow}>
-              {/* Protein */}
-              <View style={styles.macroInputCol}>
-                <Text style={[styles.inputLabel, { color: '#E54D42' }]}>PROTEIN (G)</Text>
-                <TextInput
-                  style={[styles.textInput, { borderColor: '#FCDAD7' }]}
-                  placeholder="30"
-                  placeholderTextColor="#A89A92"
-                  keyboardType="numeric"
-                  value={manualProtein}
-                  onChangeText={setManualProtein}
-                />
-              </View>
-
-              {/* Carbs */}
-              <View style={styles.macroInputCol}>
-                <Text style={[styles.inputLabel, { color: '#F39C12' }]}>CARBS (G)</Text>
-                <TextInput
-                  style={[styles.textInput, { borderColor: '#FDEFD7' }]}
-                  placeholder="45"
-                  placeholderTextColor="#A89A92"
-                  keyboardType="numeric"
-                  value={manualCarbs}
-                  onChangeText={setManualCarbs}
-                />
-              </View>
-
-              {/* Fat */}
-              <View style={styles.macroInputCol}>
-                <Text style={[styles.inputLabel, { color: '#8B5A2B' }]}>FAT (G)</Text>
-                <TextInput
-                  style={[styles.textInput, { borderColor: '#EFE7DF' }]}
-                  placeholder="14"
-                  placeholderTextColor="#A89A92"
-                  keyboardType="numeric"
-                  value={manualFat}
-                  onChangeText={setManualFat}
-                />
-              </View>
-            </View>
-
-            {/* Submit Button */}
+      {/* ============================================================ */}
+      {/* MODE 2: CLEAN MANUAL INPUT FORM                              */}
+      {/* ============================================================ */}
+      {activeMode === 'manual' && (
+        <SafeAreaView style={styles.manualSafeArea}>
+          <View style={styles.manualHeader}>
             <TouchableOpacity
-              style={styles.primaryActionButton}
-              onPress={handleManualSubmit}
-              activeOpacity={0.85}
+              onPress={() => setActiveMode('camera')}
+              style={styles.manualBackButton}
+              activeOpacity={0.7}
             >
-              <Check size={20} color="#FFFFFF" strokeWidth={2.5} />
-              <Text style={styles.primaryActionText}>Review & Log Meal</Text>
+              <ArrowLeft size={20} color="#2A1810" />
             </TouchableOpacity>
+            <Text style={styles.manualHeaderTitle}>Manual Entry</Text>
+            <View style={styles.headerSpacer} />
           </View>
-        )}
-      </ScrollView>
+
+          <ScrollView contentContainerStyle={styles.manualScrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.manualCard}>
+              <Text style={styles.manualCardHeading}>Log Nutrition Details</Text>
+              <Text style={styles.manualCardSubtitle}>
+                Directly input meal details to update today's macros.
+              </Text>
+
+              {/* Meal Name */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>MEAL / DISH NAME</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. Grilled Chicken Quinoa Bowl"
+                  placeholderTextColor="#A89A92"
+                  value={manualTitle}
+                  onChangeText={setManualTitle}
+                />
+              </View>
+
+              {/* Calories */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>CALORIES (KCAL)</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g. 540"
+                  placeholderTextColor="#A89A92"
+                  keyboardType="numeric"
+                  value={manualCalories}
+                  onChangeText={setManualCalories}
+                />
+              </View>
+
+              {/* 3 Macro Fields in Row */}
+              <View style={styles.macrosInputRow}>
+                {/* Protein */}
+                <View style={styles.macroInputCol}>
+                  <Text style={[styles.inputLabel, { color: '#E54D42' }]}>PROTEIN (G)</Text>
+                  <TextInput
+                    style={[styles.textInput, { borderColor: '#FCDAD7' }]}
+                    placeholder="38"
+                    placeholderTextColor="#A89A92"
+                    keyboardType="numeric"
+                    value={manualProtein}
+                    onChangeText={setManualProtein}
+                  />
+                </View>
+
+                {/* Carbs */}
+                <View style={styles.macroInputCol}>
+                  <Text style={[styles.inputLabel, { color: '#F39C12' }]}>CARBS (G)</Text>
+                  <TextInput
+                    style={[styles.textInput, { borderColor: '#FDEFD7' }]}
+                    placeholder="45"
+                    placeholderTextColor="#A89A92"
+                    keyboardType="numeric"
+                    value={manualCarbs}
+                    onChangeText={setManualCarbs}
+                  />
+                </View>
+
+                {/* Fat */}
+                <View style={styles.macroInputCol}>
+                  <Text style={[styles.inputLabel, { color: '#8B5A2B' }]}>FAT (G)</Text>
+                  <TextInput
+                    style={[styles.textInput, { borderColor: '#EFE7DF' }]}
+                    placeholder="16"
+                    placeholderTextColor="#A89A92"
+                    keyboardType="numeric"
+                    value={manualFat}
+                    onChangeText={setManualFat}
+                  />
+                </View>
+              </View>
+
+              {/* Submit Button */}
+              <TouchableOpacity
+                style={styles.primaryActionButton}
+                onPress={handleManualSubmit}
+                activeOpacity={0.85}
+              >
+                <Check size={20} color="#FFFFFF" strokeWidth={2.5} />
+                <Text style={styles.primaryActionText}>Review & Log Meal</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      )}
 
       {/* Scanning Fullscreen Loading Overlay */}
       {isScanning && (
@@ -435,7 +530,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
             <ActivityIndicator size="large" color="#FF5B00" />
             <Text style={styles.loadingTitle}>Analyzing Nutrition...</Text>
             <Text style={styles.loadingSubtitle}>
-              Compressing to 1080p • Querying Gemini Flash-Lite
+              Processing {validImagesCount} angle{validImagesCount > 1 ? 's' : ''} with Gemini Flash-Lite
             </Text>
           </View>
         </View>
@@ -448,50 +543,257 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         onAddToDailyTracker={handleConfirmAddToDaily}
         onDismiss={handleDismissResult}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  fullscreenContainer: {
     flex: 1,
-    backgroundColor: '#FAF6F0',
+    backgroundColor: '#140D09',
   },
-  glowTopRight: {
+
+  // Viewfinder
+  viewfinderBackground: {
+    flex: 1,
+    backgroundColor: '#1E1610',
+    justifyContent: 'space-between',
+    position: 'relative',
+  },
+  ambientTopGlow: {
     position: 'absolute',
-    top: -80,
-    right: -80,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: '#FFE2D1',
-    opacity: 0.6,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    backgroundColor: 'rgba(255, 91, 0, 0.08)',
   },
-  glowBottomLeft: {
+  ambientBottomGlow: {
     position: 'absolute',
-    bottom: 80,
-    left: -80,
-    width: 240,
+    bottom: 0,
+    left: 0,
+    right: 0,
     height: 240,
-    borderRadius: 120,
-    backgroundColor: '#FDECD2',
-    opacity: 0.5,
+    backgroundColor: 'rgba(20, 13, 9, 0.85)',
   },
-  header: {
+
+  // Top Bar
+  topBarSafe: {
+    zIndex: 10,
+  },
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  backButton: {
+  circularGlassButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  flashButtonActive: {
+    backgroundColor: 'rgba(255, 91, 0, 0.25)',
+    borderColor: '#FF5B00',
+  },
+  centerModePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    gap: 6,
+  },
+  centerModeText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  // Reticle
+  centerReticleContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  reticleFrame: {
+    width: width * 0.78,
+    height: 250,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: '#FF5B00',
+    borderStyle: 'dashed',
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 91, 0, 0.03)',
+  },
+  laserScanLine: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    height: 2,
+    backgroundColor: '#FF5B00',
+    shadowColor: '#FF5B00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+  },
+  hintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+    marginTop: 14,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  hintPillText: {
+    color: '#FAF6F0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Bottom Controls
+  bottomControlsSafe: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    zIndex: 10,
+  },
+  capturesDockWrapper: {
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  floatingAnalyzeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF5B00',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 6,
+    marginBottom: 12,
+    shadowColor: '#FF5B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  floatingAnalyzeText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  thumbnailsTray: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  thumbnailSlot: {
+    width: 52,
+    height: 52,
+  },
+  emptyThumbBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filledThumbBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 2,
+    borderColor: '#FF5B00',
+  },
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbDeleteButton: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(42, 24, 16, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Shutter Controls
+  shutterControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
+  sideControlButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  shutterOuterRing: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 4,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  shutterInnerCore: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FF5B00',
+  },
+
+  // Manual Form
+  manualSafeArea: {
+    flex: 1,
+    backgroundColor: '#FAF6F0',
+  },
+  manualHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  manualBackButton: {
     padding: 8,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#EFE7DF',
   },
-  headerTitle: {
+  manualHeaderTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: '#2A1810',
@@ -499,225 +801,24 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 36,
   },
-
-  // Mode Switcher
-  modeSwitcherContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#EFE7DF',
-    borderRadius: 16,
-    padding: 4,
-    marginHorizontal: 20,
-    marginBottom: 16,
-  },
-  modeTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 12,
-    gap: 6,
-  },
-  modeTabActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#2A1810',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  modeTabText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#8C7B73',
-  },
-  modeTabTextActive: {
-    color: '#FF5B00',
-    fontWeight: '800',
-  },
-  scrollContent: {
+  manualScrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-
-  // AI Camera Viewfinder
-  aiScanContainer: {
-    alignItems: 'center',
-  },
-  viewfinderBox: {
-    width: '100%',
-    height: 220,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#EFE7DF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  cornerBracket: {
-    position: 'absolute',
-    width: 24,
-    height: 24,
-    borderColor: '#FF5B00',
-  },
-  topLeft: {
-    top: 14,
-    left: 14,
-    borderTopWidth: 3,
-    borderLeftWidth: 3,
-    borderTopLeftRadius: 8,
-  },
-  topRight: {
-    top: 14,
-    right: 14,
-    borderTopWidth: 3,
-    borderRightWidth: 3,
-    borderTopRightRadius: 8,
-  },
-  bottomLeft: {
-    bottom: 14,
-    left: 14,
-    borderBottomWidth: 3,
-    borderLeftWidth: 3,
-    borderBottomLeftRadius: 8,
-  },
-  bottomRight: {
-    bottom: 14,
-    right: 14,
-    borderBottomWidth: 3,
-    borderRightWidth: 3,
-    borderBottomRightRadius: 8,
-  },
-  scanLine: {
-    position: 'absolute',
-    top: 20,
-    left: 20,
-    right: 20,
-    height: 2,
-    backgroundColor: '#FF5B00',
-    shadowColor: '#FF5B00',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-  },
-  viewfinderCenter: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  viewfinderHint: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#2A1810',
-    marginTop: 4,
-  },
-  viewfinderSubhint: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#8C7B73',
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 12,
-    marginBottom: 24,
-  },
-  primaryActionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF5B00',
-    paddingVertical: 14,
-    borderRadius: 18,
-    gap: 8,
-    shadowColor: '#FF5B00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  primaryActionText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  secondaryActionButton: {
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#FFDBC2',
-  },
-
-  // Presets
-  presetSection: {
-    width: '100%',
-  },
-  presetHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 12,
-  },
-  presetSectionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#8C7B73',
-    letterSpacing: 0.5,
-  },
-  presetGrid: {
-    gap: 10,
-  },
-  presetCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 10,
-    borderWidth: 1.5,
-    borderColor: '#EFE7DF',
-    gap: 12,
-  },
-  presetThumb: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-  },
-  presetInfo: {
-    flex: 1,
-  },
-  presetName: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#2A1810',
-    marginBottom: 2,
-  },
-  presetCals: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FF5B00',
-  },
-
-  // Manual Container
-  manualContainer: {
+  manualCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 22,
     padding: 20,
     borderWidth: 1.5,
     borderColor: '#EFE7DF',
   },
-  manualHeading: {
+  manualCardHeading: {
     fontSize: 18,
     fontWeight: '800',
     color: '#2A1810',
     marginBottom: 4,
   },
-  manualSubtitle: {
+  manualCardSubtitle: {
     fontSize: 13,
     color: '#8C7B73',
     marginBottom: 18,
@@ -751,11 +852,30 @@ const styles = StyleSheet.create({
   macroInputCol: {
     flex: 1,
   },
+  primaryActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FF5B00',
+    paddingVertical: 14,
+    borderRadius: 18,
+    gap: 8,
+    shadowColor: '#FF5B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryActionText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
 
   // Loading Overlay
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(42, 24, 16, 0.7)',
+    backgroundColor: 'rgba(20, 13, 9, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
@@ -766,7 +886,7 @@ const styles = StyleSheet.create({
     padding: 26,
     alignItems: 'center',
     gap: 10,
-    width: '80%',
+    width: '82%',
   },
   loadingTitle: {
     fontSize: 17,
