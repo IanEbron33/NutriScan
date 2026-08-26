@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || 'AIzaSyAwd-dKGr0PJHI7MwrNGE30bN_YRkii2SQ';
+const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
 
 export interface FoodAnalysisResult {
   dish_name: string;

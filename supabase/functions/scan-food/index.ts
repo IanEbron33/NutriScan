@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 declare const Deno: any;
 
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "AIzaSyAwd-dKGr0PJHI7MwrNGE30bN_YRkii2SQ";
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +16,16 @@ serve(async (req: any) => {
   }
 
   const startTime = Date.now();
+
+  if (!GEMINI_API_KEY) {
+    return new Response(
+      JSON.stringify({
+        error: "GEMINI_API_KEY secret is not configured in Supabase Edge Function environment. Please configure it in your Supabase project settings or via CLI.",
+        latency_ms: Date.now() - startTime,
+      }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
   try {
     const body = await req.json();
