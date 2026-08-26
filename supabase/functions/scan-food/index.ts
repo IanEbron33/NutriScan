@@ -91,17 +91,20 @@ Return a structured JSON object strictly matching this schema:
     }
   ],
   "micronutrients": {
+    "potassium_mg": estimated mg or 0,
+    "fiber_g": estimated grams or 0,
     "vitamin_c_mg": estimated mg or 0,
+    "vitamin_b6_mg": estimated mg or 0,
+    "magnesium_mg": estimated mg or 0,
     "iron_mg": estimated mg or 0,
-    "calcium_mg": estimated mg or 0,
-    "fiber_g": estimated grams or 0
+    "calcium_mg": estimated mg or 0
   },
   "health_insight": "One punchy 1-sentence nutritional highlight based on the detected items",
   "confidence_score": 0.96
 }
 Return ONLY valid JSON with no markdown backticks or explanation.`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
 
     const response = await fetch(geminiUrl, {
       method: "POST",
@@ -127,7 +130,7 @@ Return ONLY valid JSON with no markdown backticks or explanation.`;
 
     if (!response.ok) {
       const errData = await response.text();
-      throw new Error(`Gemini 3.5 Flash API returned status ${response.status}: ${errData}`);
+      throw new Error(`Gemini 3.5 Flash Lite API returned status ${response.status}: ${errData}`);
     }
 
     const data = await response.json();
@@ -137,7 +140,7 @@ Return ONLY valid JSON with no markdown backticks or explanation.`;
     const latencyMs = Date.now() - startTime;
 
     if (!cleanJson || !cleanJson.dish_name) {
-      throw new Error("Failed to parse Gemini 3.5 Flash response as valid food analysis JSON");
+      throw new Error("Failed to parse Gemini 3.5 Flash Lite response as valid food analysis JSON");
     }
 
     return new Response(

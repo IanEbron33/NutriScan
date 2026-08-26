@@ -320,7 +320,16 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
 
           {/* Center Reticle Focus Box */}
           <View style={styles.centerReticleContainer}>
-            <View style={styles.reticleFrame}>
+            <View style={[styles.reticleFrame, validImagesCount > 0 && styles.reticleFrameWithImage]}>
+              {/* Captured Image Preview if photo exists */}
+              {validImagesCount > 0 && capturedImages[validImagesCount - 1]?.uri ? (
+                <Image
+                  source={{ uri: capturedImages[validImagesCount - 1].uri }}
+                  style={styles.reticlePreviewImage}
+                  resizeMode="cover"
+                />
+              ) : null}
+
               {/* Animated Laser Scan Line */}
               <Animated.View
                 style={[
@@ -330,12 +339,25 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
                   },
                 ]}
               />
+
+              {/* Angle Count Badge */}
+              {validImagesCount > 0 && (
+                <View style={styles.reticleTagBadge}>
+                  <Text style={styles.reticleTagText}>
+                    Angle {validImagesCount} of 3 Captured
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Subtle Guidance Pill */}
             <View style={styles.hintPill}>
               <Lightbulb size={13} color="#FFDBC2" />
-              <Text style={styles.hintPillText}>Keep dish centered in clear light</Text>
+              <Text style={styles.hintPillText}>
+                {validImagesCount > 0
+                  ? 'Photo ready! Tap Analyze or snap another angle.'
+                  : 'Keep dish centered in clear light'}
+              </Text>
             </View>
           </View>
 
@@ -537,7 +559,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
             <ActivityIndicator size="large" color="#FF5B00" />
             <Text style={styles.loadingTitle}>Analyzing Nutrition...</Text>
             <Text style={styles.loadingSubtitle}>
-              Processing {validImagesCount} angle{validImagesCount > 1 ? 's' : ''} with Gemini 3.5 Flash
+              Processing {validImagesCount} angle{validImagesCount > 1 ? 's' : ''} with Gemini 3.5 Flash-Lite
             </Text>
           </View>
         </View>
@@ -642,6 +664,36 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
     backgroundColor: 'rgba(255, 91, 0, 0.03)',
+  },
+  reticleFrameWithImage: {
+    borderStyle: 'solid',
+    borderColor: '#FF5B00',
+    backgroundColor: '#000000',
+  },
+  reticlePreviewImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  reticleTagBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(42, 24, 16, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 91, 0, 0.5)',
+  },
+  reticleTagText: {
+    color: '#FAF6F0',
+    fontSize: 11,
+    fontWeight: '700',
   },
   laserScanLine: {
     position: 'absolute',

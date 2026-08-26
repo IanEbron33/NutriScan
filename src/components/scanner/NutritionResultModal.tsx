@@ -46,15 +46,10 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
     >
       <View style={styles.overlay}>
         <View style={styles.sheetContainer}>
-          {/* Header Drag / Close Bar */}
+          {/* Clean Modal Drag Bar & Close Action */}
           <View style={styles.headerRow}>
-            <View style={styles.latencyBadge}>
-              <Zap size={14} color="#FF5B00" fill="#FF5B00" />
-              <Text style={styles.latencyText}>
-                {result.latency_ms}ms • {result.source === 'edge_function' ? 'Edge AI (3.5 Flash)' : result.source === 'client_direct' ? 'Gemini 3.5 Flash' : 'Preset'}
-              </Text>
-            </View>
-
+            <View style={styles.dragBarPlaceholder} />
+            <View style={styles.dragHandle} />
             <TouchableOpacity onPress={onDismiss} style={styles.closeButton} activeOpacity={0.7}>
               <X size={18} color="#8C7B73" />
             </TouchableOpacity>
@@ -171,37 +166,110 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
               </View>
             )}
 
-            {/* Micronutrients Snapshot */}
+            {/* Comprehensive Estimated Micronutrients Grid */}
             {result.micronutrients && (
-              <>
-                <Text style={[styles.sectionHeader, { marginTop: 14 }]}>MICRONUTRIENTS</Text>
-                <View style={styles.microPillsRow}>
-                  {result.micronutrients.vitamin_c_mg !== undefined && (
-                    <View style={styles.microPill}>
-                      <CheckCircle2 size={13} color="#2E7D32" />
-                      <Text style={styles.microPillText}>
-                        Vit C: {result.micronutrients.vitamin_c_mg}mg
+              <View style={styles.microSection}>
+                <Text style={[styles.sectionHeader, { marginTop: 12 }]}>ESTIMATED MICRONUTRIENTS</Text>
+                <View style={styles.microGrid}>
+                  {result.micronutrients.potassium_mg !== undefined && result.micronutrients.potassium_mg > 0 && (
+                    <View style={styles.microCard}>
+                      <View style={styles.microCardHeader}>
+                        <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
+                          <Sparkles size={11} color="#F39C12" />
+                        </View>
+                        <Text style={styles.microCardLabel}>Potassium</Text>
+                      </View>
+                      <Text style={styles.microCardValue}>
+                        {result.micronutrients.potassium_mg} <Text style={styles.microCardUnit}>mg</Text>
                       </Text>
                     </View>
                   )}
-                  {result.micronutrients.iron_mg !== undefined && (
-                    <View style={styles.microPill}>
-                      <CheckCircle2 size={13} color="#F39C12" />
-                      <Text style={styles.microPillText}>
-                        Iron: {result.micronutrients.iron_mg}mg
+
+                  {result.micronutrients.fiber_g !== undefined && result.micronutrients.fiber_g > 0 && (
+                    <View style={styles.microCard}>
+                      <View style={styles.microCardHeader}>
+                        <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
+                          <CheckCircle2 size={11} color="#2E7D32" />
+                        </View>
+                        <Text style={styles.microCardLabel}>Fiber</Text>
+                      </View>
+                      <Text style={styles.microCardValue}>
+                        {result.micronutrients.fiber_g} <Text style={styles.microCardUnit}>g</Text>
                       </Text>
                     </View>
                   )}
-                  {result.micronutrients.calcium_mg !== undefined && (
-                    <View style={styles.microPill}>
-                      <CheckCircle2 size={13} color="#FF5B00" />
-                      <Text style={styles.microPillText}>
-                        Calcium: {result.micronutrients.calcium_mg}mg
+
+                  {result.micronutrients.vitamin_c_mg !== undefined && result.micronutrients.vitamin_c_mg > 0 && (
+                    <View style={styles.microCard}>
+                      <View style={styles.microCardHeader}>
+                        <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
+                          <Zap size={11} color="#FF5B00" />
+                        </View>
+                        <Text style={styles.microCardLabel}>Vitamin C</Text>
+                      </View>
+                      <Text style={styles.microCardValue}>
+                        {result.micronutrients.vitamin_c_mg} <Text style={styles.microCardUnit}>mg</Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  {result.micronutrients.vitamin_b6_mg !== undefined && result.micronutrients.vitamin_b6_mg > 0 && (
+                    <View style={styles.microCard}>
+                      <View style={styles.microCardHeader}>
+                        <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
+                          <Sparkles size={11} color="#FF5B00" />
+                        </View>
+                        <Text style={styles.microCardLabel}>Vitamin B6</Text>
+                      </View>
+                      <Text style={styles.microCardValue}>
+                        {result.micronutrients.vitamin_b6_mg} <Text style={styles.microCardUnit}>mg</Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  {result.micronutrients.magnesium_mg !== undefined && result.micronutrients.magnesium_mg > 0 && (
+                    <View style={styles.microCard}>
+                      <View style={styles.microCardHeader}>
+                        <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
+                          <CheckCircle2 size={11} color="#2E7D32" />
+                        </View>
+                        <Text style={styles.microCardLabel}>Magnesium</Text>
+                      </View>
+                      <Text style={styles.microCardValue}>
+                        {result.micronutrients.magnesium_mg} <Text style={styles.microCardUnit}>mg</Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  {result.micronutrients.iron_mg !== undefined && result.micronutrients.iron_mg > 0 && (
+                    <View style={styles.microCard}>
+                      <View style={styles.microCardHeader}>
+                        <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
+                          <CheckCircle2 size={11} color="#F39C12" />
+                        </View>
+                        <Text style={styles.microCardLabel}>Iron</Text>
+                      </View>
+                      <Text style={styles.microCardValue}>
+                        {result.micronutrients.iron_mg} <Text style={styles.microCardUnit}>mg</Text>
+                      </Text>
+                    </View>
+                  )}
+
+                  {result.micronutrients.calcium_mg !== undefined && result.micronutrients.calcium_mg > 0 && (
+                    <View style={styles.microCard}>
+                      <View style={styles.microCardHeader}>
+                        <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
+                          <CheckCircle2 size={11} color="#FF5B00" />
+                        </View>
+                        <Text style={styles.microCardLabel}>Calcium</Text>
+                      </View>
+                      <Text style={styles.microCardValue}>
+                        {result.micronutrients.calcium_mg} <Text style={styles.microCardUnit}>mg</Text>
                       </Text>
                     </View>
                   )}
                 </View>
-              </>
+              </View>
             )}
 
             {/* Health Insight */}
@@ -258,25 +326,18 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 14,
   },
-  latencyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF0E6',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#FFDBC2',
-    gap: 6,
+  dragBarPlaceholder: {
+    width: 32,
   },
-  latencyText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FF5B00',
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E4DDD4',
   },
   closeButton: {
     padding: 6,
@@ -411,27 +472,52 @@ const styles = StyleSheet.create({
     color: '#8C7B73',
     marginTop: 2,
   },
-  microPillsRow: {
+  microSection: {
+    marginBottom: 14,
+  },
+  microGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 14,
+    marginTop: 4,
   },
-  microPill: {
+  microCard: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1.5,
+    borderColor: '#EFE7DF',
+    gap: 4,
+  },
+  microCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#EFE7DF',
     gap: 6,
   },
-  microPillText: {
+  microIconBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  microCardLabel: {
     fontSize: 12,
     fontWeight: '700',
+    color: '#8C7B73',
+  },
+  microCardValue: {
+    fontSize: 15,
+    fontWeight: '800',
     color: '#2A1810',
+    marginLeft: 26,
+  },
+  microCardUnit: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#8C7B73',
   },
   insightBox: {
     flexDirection: 'row',

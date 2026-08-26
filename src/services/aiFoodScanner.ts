@@ -19,10 +19,13 @@ export interface FoodAnalysisResult {
   fat_g: number;
   detected_items?: FoodItemBreakdown[];
   micronutrients: {
+    potassium_mg?: number;
+    fiber_g?: number;
     vitamin_c_mg?: number;
+    vitamin_b6_mg?: number;
+    magnesium_mg?: number;
     iron_mg?: number;
     calcium_mg?: number;
-    fiber_g?: number;
   };
   health_insight: string;
   confidence_score: number;
@@ -190,10 +193,13 @@ Return a structured JSON object strictly matching this schema:
     }
   ],
   "micronutrients": {
+    "potassium_mg": estimated mg or 0,
+    "fiber_g": estimated grams or 0,
     "vitamin_c_mg": estimated mg or 0,
+    "vitamin_b6_mg": estimated mg or 0,
+    "magnesium_mg": estimated mg or 0,
     "iron_mg": estimated mg or 0,
-    "calcium_mg": estimated mg or 0,
-    "fiber_g": estimated grams or 0
+    "calcium_mg": estimated mg or 0
   },
   "health_insight": "One punchy 1-sentence nutritional highlight based on the detected items",
   "confidence_score": 0.96
@@ -209,7 +215,7 @@ Return ONLY valid JSON with no markdown backticks or explanation.`;
         },
       ];
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -242,7 +248,7 @@ Return ONLY valid JSON with no markdown backticks or explanation.`;
         }
       }
     } catch (apiErr) {
-      console.warn('Gemini 3.5 Flash direct API call error:', apiErr);
+      console.warn('Gemini 3.5 Flash Lite direct API call error:', apiErr);
     }
   }
 
