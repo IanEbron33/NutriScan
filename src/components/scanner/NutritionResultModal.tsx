@@ -51,7 +51,7 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
             <View style={styles.latencyBadge}>
               <Zap size={14} color="#FF5B00" fill="#FF5B00" />
               <Text style={styles.latencyText}>
-                {result.latency_ms}ms • {result.source === 'edge_function' ? 'Edge AI' : 'Gemini Vision'}
+                {result.latency_ms}ms • {result.source === 'edge_function' ? 'Edge AI (3.5 Flash)' : result.source === 'client_direct' ? 'Gemini 3.5 Flash' : 'Preset'}
               </Text>
             </View>
 
@@ -99,7 +99,7 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
             </View>
 
             {/* 3 Macro Cards */}
-            <Text style={styles.sectionHeader}>MACRONUTRIENTS</Text>
+            <Text style={styles.sectionHeader}>TOTAL MACRONUTRIENTS</Text>
             <View style={styles.macroRow}>
               {/* Protein */}
               <View style={[styles.macroCard, { borderColor: '#FCDAD7', backgroundColor: '#FFFDFD' }]}>
@@ -122,6 +122,54 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
                 <Text style={styles.macroName}>Fats</Text>
               </View>
             </View>
+
+            {/* Detected Items on Plate / Table */}
+            {result.detected_items && result.detected_items.length > 0 && (
+              <View style={styles.detectedItemsSection}>
+                <Text style={[styles.sectionHeader, { marginTop: 8 }]}>
+                  DETECTED MEAL ITEMS ({result.detected_items.length})
+                </Text>
+                <View style={styles.itemsList}>
+                  {result.detected_items.map((item, idx) => (
+                    <View key={idx} style={styles.itemCard}>
+                      <View style={styles.itemHeader}>
+                        <View style={styles.itemTitleRow}>
+                          <View style={styles.itemIconContainer}>
+                            <UtensilsCrossed size={13} color="#FF5B00" />
+                          </View>
+                          <Text style={styles.itemTitle} numberOfLines={2}>
+                            {item.name}
+                          </Text>
+                        </View>
+                        {item.portion ? (
+                          <View style={styles.portionBadge}>
+                            <Text style={styles.portionText}>{item.portion}</Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      <View style={styles.itemMacrosRow}>
+                        <View style={styles.miniMacroPill}>
+                          <Text style={styles.miniMacroCal}>{item.calories} kcal</Text>
+                        </View>
+                        <View style={styles.miniMacroPill}>
+                          <View style={[styles.miniDot, { backgroundColor: '#E54D42' }]} />
+                          <Text style={styles.miniMacroText}>{item.protein_g}g P</Text>
+                        </View>
+                        <View style={styles.miniMacroPill}>
+                          <View style={[styles.miniDot, { backgroundColor: '#F39C12' }]} />
+                          <Text style={styles.miniMacroText}>{item.carbs_g}g C</Text>
+                        </View>
+                        <View style={styles.miniMacroPill}>
+                          <View style={[styles.miniDot, { backgroundColor: '#8B5A2B' }]} />
+                          <Text style={styles.miniMacroText}>{item.fat_g}g F</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Micronutrients Snapshot */}
             {result.micronutrients && (
@@ -400,6 +448,91 @@ const styles = StyleSheet.create({
     color: '#8B4513',
     lineHeight: 18,
     fontWeight: '600',
+  },
+  // Detected Items Breakdown
+  detectedItemsSection: {
+    marginBottom: 14,
+  },
+  itemsList: {
+    gap: 8,
+    marginTop: 4,
+  },
+  itemCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#EFE7DF',
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 8,
+  },
+  itemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 6,
+  },
+  itemIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#2A1810',
+    flex: 1,
+  },
+  portionBadge: {
+    backgroundColor: '#FFF0E6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFDBC2',
+  },
+  portionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FF5B00',
+  },
+  itemMacrosRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  miniMacroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAF6F0',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+  },
+  miniMacroCal: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#8B4513',
+  },
+  miniDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  miniMacroText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7D6E66',
   },
   buttonContainer: {
     gap: 10,

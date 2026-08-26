@@ -56,7 +56,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   const [flashEnabled, setFlashEnabled] = useState(false);
 
   // 3-Slot Recent Captures (1 to 3 images)
-  const [capturedImages, setCapturedImages] = useState<string[]>([]);
+  const [capturedImages, setCapturedImages] = useState<Array<{ uri: string; base64?: string }>>([]);
 
   // Scanning & Result state
   const [isScanning, setIsScanning] = useState(false);
@@ -128,13 +128,16 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         }
 
         const result = await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          aspect: [4, 3],
+          allowsEditing: false,
           quality: 0.7,
+          base64: true,
         });
 
         if (!result.canceled && result.assets?.[0]?.uri) {
-          setCapturedImages((prev) => [...prev, result.assets[0].uri]);
+          setCapturedImages((prev) => [
+            ...prev,
+            { uri: result.assets[0].uri, base64: result.assets[0].base64 || '' },
+          ]);
           return;
         }
       } catch (cameraErr) {
@@ -145,7 +148,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     // Fallback: Seamlessly docks a test meal angle photo for instant multi-image testing
     const nextPhotoIndex = capturedImages.length % FALLBACK_TEST_PHOTOS.length;
     const testPhotoUri = FALLBACK_TEST_PHOTOS[nextPhotoIndex];
-    setCapturedImages((prev) => [...prev, testPhotoUri]);
+    setCapturedImages((prev) => [...prev, { uri: testPhotoUri }]);
   };
 
   // 2. Photo Gallery Picker (Fills next open slot up to 3)
@@ -166,13 +169,16 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-          allowsEditing: true,
-          aspect: [4, 3],
+          allowsEditing: false,
           quality: 0.7,
+          base64: true,
         });
 
         if (!result.canceled && result.assets?.[0]?.uri) {
-          setCapturedImages((prev) => [...prev, result.assets[0].uri]);
+          setCapturedImages((prev) => [
+            ...prev,
+            { uri: result.assets[0].uri, base64: result.assets[0].base64 || '' },
+          ]);
           return;
         }
       } catch (galleryErr) {
@@ -183,7 +189,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     // Fallback photo
     const nextPhotoIndex = (capturedImages.length + 1) % FALLBACK_TEST_PHOTOS.length;
     const testPhotoUri = FALLBACK_TEST_PHOTOS[nextPhotoIndex];
-    setCapturedImages((prev) => [...prev, testPhotoUri]);
+    setCapturedImages((prev) => [...prev, { uri: testPhotoUri }]);
   };
 
   // Remove a photo from the 3-slot dock
@@ -203,9 +209,9 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
       const foodData = await analyzeFoodImages(capturedImages);
       setAnalysisResult(foodData);
       setIsResultModalOpen(true);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Multi-image food scan error:', err);
-      Alert.alert('Scan Failed', 'Could not analyze food images. Please try again.');
+      Alert.alert('Scan Failed', err?.message || 'Could not analyze food images. Please check your Supabase Edge Function secrets.');
     } finally {
       setIsScanning(false);
     }
@@ -355,7 +361,8 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
               {/* 3-Thumbnail Tray */}
               <View style={styles.thumbnailsTray}>
                 {[0, 1, 2].map((slotIdx) => {
-                  const imageUri = capturedImages[slotIdx];
+                  const item = capturedImages[slotIdx];
+                  const imageUri = item?.uri;
 
                   return (
                     <View key={slotIdx} style={styles.thumbnailSlot}>
@@ -530,7 +537,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
             <ActivityIndicator size="large" color="#FF5B00" />
             <Text style={styles.loadingTitle}>Analyzing Nutrition...</Text>
             <Text style={styles.loadingSubtitle}>
-              Processing {validImagesCount} angle{validImagesCount > 1 ? 's' : ''} with Gemini Flash-Lite
+              Processing {validImagesCount} angle{validImagesCount > 1 ? 's' : ''} with Gemini 3.5 Flash
             </Text>
           </View>
         </View>
