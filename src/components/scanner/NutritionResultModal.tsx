@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -18,6 +18,7 @@ import {
   UtensilsCrossed,
   CheckCircle2,
   X,
+  PieChart,
 } from '../ui/LucideIcons';
 
 const { width } = Dimensions.get('window');
@@ -35,7 +36,14 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
   onAddToDailyTracker,
   onDismiss,
 }) => {
+  const [activeTab, setActiveTab] = useState<'macros' | 'micros'>('macros');
+
   if (!result) return null;
+
+  const totalGrams = (result.protein_g || 0) + (result.carbs_g || 0) + (result.fat_g || 0);
+  const proteinPct = totalGrams > 0 ? Math.round(((result.protein_g || 0) / totalGrams) * 100) : 33;
+  const carbsPct = totalGrams > 0 ? Math.round(((result.carbs_g || 0) / totalGrams) * 100) : 33;
+  const fatPct = totalGrams > 0 ? Math.max(0, 100 - proteinPct - carbsPct) : 34;
 
   return (
     <Modal
@@ -93,192 +101,250 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
               </View>
             </View>
 
-            {/* 3 Macro Cards */}
-            <Text style={styles.sectionHeader}>TOTAL MACRONUTRIENTS</Text>
-            <View style={styles.macroRow}>
-              {/* Protein */}
-              <View style={[styles.macroCard, { borderColor: '#FCDAD7', backgroundColor: '#FFFDFD' }]}>
-                <View style={[styles.macroDot, { backgroundColor: '#E54D42' }]} />
-                <Text style={styles.macroGram}>{result.protein_g}g</Text>
-                <Text style={styles.macroName}>Protein</Text>
-              </View>
+            {/* Segmented Pill Switcher (Option 2A) */}
+            <View style={styles.tabSwitcherContainer}>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'macros' && styles.tabButtonActive]}
+                onPress={() => setActiveTab('macros')}
+                activeOpacity={0.8}
+              >
+                <PieChart
+                  size={15}
+                  color={activeTab === 'macros' ? '#FFFFFF' : '#7D6E66'}
+                />
+                <Text style={[styles.tabButtonText, activeTab === 'macros' && styles.tabButtonTextActive]}>
+                  Macronutrients
+                </Text>
+              </TouchableOpacity>
 
-              {/* Carbs */}
-              <View style={[styles.macroCard, { borderColor: '#FDEFD7', backgroundColor: '#FFFDFB' }]}>
-                <View style={[styles.macroDot, { backgroundColor: '#F39C12' }]} />
-                <Text style={styles.macroGram}>{result.carbs_g}g</Text>
-                <Text style={styles.macroName}>Carbs</Text>
-              </View>
-
-              {/* Fats */}
-              <View style={[styles.macroCard, { borderColor: '#EFE7DF', backgroundColor: '#FAF8F5' }]}>
-                <View style={[styles.macroDot, { backgroundColor: '#8B5A2B' }]} />
-                <Text style={styles.macroGram}>{result.fat_g}g</Text>
-                <Text style={styles.macroName}>Fats</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.tabButton, activeTab === 'micros' && styles.tabButtonActive]}
+                onPress={() => setActiveTab('micros')}
+                activeOpacity={0.8}
+              >
+                <Sparkles
+                  size={15}
+                  color={activeTab === 'micros' ? '#FFFFFF' : '#7D6E66'}
+                />
+                <Text style={[styles.tabButtonText, activeTab === 'micros' && styles.tabButtonTextActive]}>
+                  Micronutrients
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Detected Items on Plate / Table */}
-            {result.detected_items && result.detected_items.length > 0 && (
-              <View style={styles.detectedItemsSection}>
-                <Text style={[styles.sectionHeader, { marginTop: 8 }]}>
-                  DETECTED MEAL ITEMS ({result.detected_items.length})
-                </Text>
-                <View style={styles.itemsList}>
-                  {result.detected_items.map((item, idx) => (
-                    <View key={idx} style={styles.itemCard}>
-                      <View style={styles.itemHeader}>
-                        <View style={styles.itemTitleRow}>
-                          <View style={styles.itemIconContainer}>
-                            <UtensilsCrossed size={13} color="#FF5B00" />
+            {/* TAB 1: MACRONUTRIENTS CONTENT */}
+            {activeTab === 'macros' && (
+              <View>
+                {/* 3 Macro Cards */}
+                <Text style={styles.sectionHeader}>TOTAL MACRONUTRIENTS</Text>
+                <View style={styles.macroRow}>
+                  {/* Protein */}
+                  <View style={[styles.macroCard, { borderColor: '#FCDAD7', backgroundColor: '#FFFDFD' }]}>
+                    <View style={[styles.macroDot, { backgroundColor: '#E54D42' }]} />
+                    <Text style={styles.macroGram}>{result.protein_g}g</Text>
+                    <Text style={styles.macroName}>Protein</Text>
+                  </View>
+
+                  {/* Carbs */}
+                  <View style={[styles.macroCard, { borderColor: '#FDEFD7', backgroundColor: '#FFFDFB' }]}>
+                    <View style={[styles.macroDot, { backgroundColor: '#F39C12' }]} />
+                    <Text style={styles.macroGram}>{result.carbs_g}g</Text>
+                    <Text style={styles.macroName}>Carbs</Text>
+                  </View>
+
+                  {/* Fats */}
+                  <View style={[styles.macroCard, { borderColor: '#EFE7DF', backgroundColor: '#FAF8F5' }]}>
+                    <View style={[styles.macroDot, { backgroundColor: '#8B5A2B' }]} />
+                    <Text style={styles.macroGram}>{result.fat_g}g</Text>
+                    <Text style={styles.macroName}>Fats</Text>
+                  </View>
+                </View>
+
+                {/* Macro Ratio Distribution Bar */}
+                {totalGrams > 0 && (
+                  <View style={styles.macroRatioContainer}>
+                    <View style={styles.macroRatioHeader}>
+                      <Text style={styles.macroRatioLabel}>MACRO DISTRIBUTION</Text>
+                      <Text style={styles.macroRatioValue}>
+                        {proteinPct}% P • {carbsPct}% C • {fatPct}% F
+                      </Text>
+                    </View>
+                    <View style={styles.macroRatioBar}>
+                      <View style={[styles.ratioSegment, { flex: Math.max(proteinPct, 1), backgroundColor: '#E54D42' }]} />
+                      <View style={[styles.ratioSegment, { flex: Math.max(carbsPct, 1), backgroundColor: '#F39C12' }]} />
+                      <View style={[styles.ratioSegment, { flex: Math.max(fatPct, 1), backgroundColor: '#8B5A2B' }]} />
+                    </View>
+                  </View>
+                )}
+
+                {/* Detected Items on Plate / Table */}
+                {result.detected_items && result.detected_items.length > 0 && (
+                  <View style={styles.detectedItemsSection}>
+                    <Text style={[styles.sectionHeader, { marginTop: 12 }]}>
+                      DETECTED MEAL ITEMS ({result.detected_items.length})
+                    </Text>
+                    <View style={styles.itemsList}>
+                      {result.detected_items.map((item, idx) => (
+                        <View key={idx} style={styles.itemCard}>
+                          <View style={styles.itemHeader}>
+                            <View style={styles.itemTitleRow}>
+                              <View style={styles.itemIconContainer}>
+                                <UtensilsCrossed size={13} color="#FF5B00" />
+                              </View>
+                              <Text style={styles.itemTitle} numberOfLines={2}>
+                                {item.name}
+                              </Text>
+                            </View>
+                            {item.portion ? (
+                              <View style={styles.portionBadge}>
+                                <Text style={styles.portionText}>{item.portion}</Text>
+                              </View>
+                            ) : null}
                           </View>
-                          <Text style={styles.itemTitle} numberOfLines={2}>
-                            {item.name}
+
+                          <View style={styles.itemMacrosRow}>
+                            <View style={styles.miniMacroPill}>
+                              <Text style={styles.miniMacroCal}>{item.calories} kcal</Text>
+                            </View>
+                            <View style={styles.miniMacroPill}>
+                              <View style={[styles.miniDot, { backgroundColor: '#E54D42' }]} />
+                              <Text style={styles.miniMacroText}>{item.protein_g}g P</Text>
+                            </View>
+                            <View style={styles.miniMacroPill}>
+                              <View style={[styles.miniDot, { backgroundColor: '#F39C12' }]} />
+                              <Text style={styles.miniMacroText}>{item.carbs_g}g C</Text>
+                            </View>
+                            <View style={styles.miniMacroPill}>
+                              <View style={[styles.miniDot, { backgroundColor: '#8B5A2B' }]} />
+                              <Text style={styles.miniMacroText}>{item.fat_g}g F</Text>
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* TAB 2: MICRONUTRIENTS CONTENT */}
+            {activeTab === 'micros' && (
+              <View>
+                {/* Comprehensive Estimated Micronutrients Grid */}
+                {result.micronutrients && (
+                  <View style={styles.microSection}>
+                    <Text style={styles.sectionHeader}>ESTIMATED MICRONUTRIENTS</Text>
+                    <View style={styles.microGrid}>
+                      {result.micronutrients.potassium_mg !== undefined && result.micronutrients.potassium_mg > 0 && (
+                        <View style={styles.microCard}>
+                          <View style={styles.microCardHeader}>
+                            <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
+                              <Sparkles size={11} color="#F39C12" />
+                            </View>
+                            <Text style={styles.microCardLabel}>Potassium</Text>
+                          </View>
+                          <Text style={styles.microCardValue}>
+                            {result.micronutrients.potassium_mg} <Text style={styles.microCardUnit}>mg</Text>
                           </Text>
                         </View>
-                        {item.portion ? (
-                          <View style={styles.portionBadge}>
-                            <Text style={styles.portionText}>{item.portion}</Text>
+                      )}
+
+                      {result.micronutrients.fiber_g !== undefined && result.micronutrients.fiber_g > 0 && (
+                        <View style={styles.microCard}>
+                          <View style={styles.microCardHeader}>
+                            <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
+                              <CheckCircle2 size={11} color="#2E7D32" />
+                            </View>
+                            <Text style={styles.microCardLabel}>Fiber</Text>
                           </View>
-                        ) : null}
-                      </View>
+                          <Text style={styles.microCardValue}>
+                            {result.micronutrients.fiber_g} <Text style={styles.microCardUnit}>g</Text>
+                          </Text>
+                        </View>
+                      )}
 
-                      <View style={styles.itemMacrosRow}>
-                        <View style={styles.miniMacroPill}>
-                          <Text style={styles.miniMacroCal}>{item.calories} kcal</Text>
+                      {result.micronutrients.vitamin_c_mg !== undefined && result.micronutrients.vitamin_c_mg > 0 && (
+                        <View style={styles.microCard}>
+                          <View style={styles.microCardHeader}>
+                            <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
+                              <Zap size={11} color="#FF5B00" />
+                            </View>
+                            <Text style={styles.microCardLabel}>Vitamin C</Text>
+                          </View>
+                          <Text style={styles.microCardValue}>
+                            {result.micronutrients.vitamin_c_mg} <Text style={styles.microCardUnit}>mg</Text>
+                          </Text>
                         </View>
-                        <View style={styles.miniMacroPill}>
-                          <View style={[styles.miniDot, { backgroundColor: '#E54D42' }]} />
-                          <Text style={styles.miniMacroText}>{item.protein_g}g P</Text>
+                      )}
+
+                      {result.micronutrients.vitamin_b6_mg !== undefined && result.micronutrients.vitamin_b6_mg > 0 && (
+                        <View style={styles.microCard}>
+                          <View style={styles.microCardHeader}>
+                            <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
+                              <Sparkles size={11} color="#FF5B00" />
+                            </View>
+                            <Text style={styles.microCardLabel}>Vitamin B6</Text>
+                          </View>
+                          <Text style={styles.microCardValue}>
+                            {result.micronutrients.vitamin_b6_mg} <Text style={styles.microCardUnit}>mg</Text>
+                          </Text>
                         </View>
-                        <View style={styles.miniMacroPill}>
-                          <View style={[styles.miniDot, { backgroundColor: '#F39C12' }]} />
-                          <Text style={styles.miniMacroText}>{item.carbs_g}g C</Text>
+                      )}
+
+                      {result.micronutrients.magnesium_mg !== undefined && result.micronutrients.magnesium_mg > 0 && (
+                        <View style={styles.microCard}>
+                          <View style={styles.microCardHeader}>
+                            <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
+                              <CheckCircle2 size={11} color="#2E7D32" />
+                            </View>
+                            <Text style={styles.microCardLabel}>Magnesium</Text>
+                          </View>
+                          <Text style={styles.microCardValue}>
+                            {result.micronutrients.magnesium_mg} <Text style={styles.microCardUnit}>mg</Text>
+                          </Text>
                         </View>
-                        <View style={styles.miniMacroPill}>
-                          <View style={[styles.miniDot, { backgroundColor: '#8B5A2B' }]} />
-                          <Text style={styles.miniMacroText}>{item.fat_g}g F</Text>
+                      )}
+
+                      {result.micronutrients.iron_mg !== undefined && result.micronutrients.iron_mg > 0 && (
+                        <View style={styles.microCard}>
+                          <View style={styles.microCardHeader}>
+                            <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
+                              <CheckCircle2 size={11} color="#F39C12" />
+                            </View>
+                            <Text style={styles.microCardLabel}>Iron</Text>
+                          </View>
+                          <Text style={styles.microCardValue}>
+                            {result.micronutrients.iron_mg} <Text style={styles.microCardUnit}>mg</Text>
+                          </Text>
                         </View>
-                      </View>
+                      )}
+
+                      {result.micronutrients.calcium_mg !== undefined && result.micronutrients.calcium_mg > 0 && (
+                        <View style={styles.microCard}>
+                          <View style={styles.microCardHeader}>
+                            <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
+                              <CheckCircle2 size={11} color="#FF5B00" />
+                            </View>
+                            <Text style={styles.microCardLabel}>Calcium</Text>
+                          </View>
+                          <Text style={styles.microCardValue}>
+                            {result.micronutrients.calcium_mg} <Text style={styles.microCardUnit}>mg</Text>
+                          </Text>
+                        </View>
+                      )}
                     </View>
-                  ))}
-                </View>
+                  </View>
+                )}
+
+                {/* Health Insight */}
+                {result.health_insight ? (
+                  <View style={styles.insightBox}>
+                    <Sparkles size={16} color="#FF5B00" style={{ marginTop: 2 }} />
+                    <Text style={styles.insightText}>{result.health_insight}</Text>
+                  </View>
+                ) : null}
               </View>
             )}
-
-            {/* Comprehensive Estimated Micronutrients Grid */}
-            {result.micronutrients && (
-              <View style={styles.microSection}>
-                <Text style={[styles.sectionHeader, { marginTop: 12 }]}>ESTIMATED MICRONUTRIENTS</Text>
-                <View style={styles.microGrid}>
-                  {result.micronutrients.potassium_mg !== undefined && result.micronutrients.potassium_mg > 0 && (
-                    <View style={styles.microCard}>
-                      <View style={styles.microCardHeader}>
-                        <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
-                          <Sparkles size={11} color="#F39C12" />
-                        </View>
-                        <Text style={styles.microCardLabel}>Potassium</Text>
-                      </View>
-                      <Text style={styles.microCardValue}>
-                        {result.micronutrients.potassium_mg} <Text style={styles.microCardUnit}>mg</Text>
-                      </Text>
-                    </View>
-                  )}
-
-                  {result.micronutrients.fiber_g !== undefined && result.micronutrients.fiber_g > 0 && (
-                    <View style={styles.microCard}>
-                      <View style={styles.microCardHeader}>
-                        <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
-                          <CheckCircle2 size={11} color="#2E7D32" />
-                        </View>
-                        <Text style={styles.microCardLabel}>Fiber</Text>
-                      </View>
-                      <Text style={styles.microCardValue}>
-                        {result.micronutrients.fiber_g} <Text style={styles.microCardUnit}>g</Text>
-                      </Text>
-                    </View>
-                  )}
-
-                  {result.micronutrients.vitamin_c_mg !== undefined && result.micronutrients.vitamin_c_mg > 0 && (
-                    <View style={styles.microCard}>
-                      <View style={styles.microCardHeader}>
-                        <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
-                          <Zap size={11} color="#FF5B00" />
-                        </View>
-                        <Text style={styles.microCardLabel}>Vitamin C</Text>
-                      </View>
-                      <Text style={styles.microCardValue}>
-                        {result.micronutrients.vitamin_c_mg} <Text style={styles.microCardUnit}>mg</Text>
-                      </Text>
-                    </View>
-                  )}
-
-                  {result.micronutrients.vitamin_b6_mg !== undefined && result.micronutrients.vitamin_b6_mg > 0 && (
-                    <View style={styles.microCard}>
-                      <View style={styles.microCardHeader}>
-                        <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
-                          <Sparkles size={11} color="#FF5B00" />
-                        </View>
-                        <Text style={styles.microCardLabel}>Vitamin B6</Text>
-                      </View>
-                      <Text style={styles.microCardValue}>
-                        {result.micronutrients.vitamin_b6_mg} <Text style={styles.microCardUnit}>mg</Text>
-                      </Text>
-                    </View>
-                  )}
-
-                  {result.micronutrients.magnesium_mg !== undefined && result.micronutrients.magnesium_mg > 0 && (
-                    <View style={styles.microCard}>
-                      <View style={styles.microCardHeader}>
-                        <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
-                          <CheckCircle2 size={11} color="#2E7D32" />
-                        </View>
-                        <Text style={styles.microCardLabel}>Magnesium</Text>
-                      </View>
-                      <Text style={styles.microCardValue}>
-                        {result.micronutrients.magnesium_mg} <Text style={styles.microCardUnit}>mg</Text>
-                      </Text>
-                    </View>
-                  )}
-
-                  {result.micronutrients.iron_mg !== undefined && result.micronutrients.iron_mg > 0 && (
-                    <View style={styles.microCard}>
-                      <View style={styles.microCardHeader}>
-                        <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
-                          <CheckCircle2 size={11} color="#F39C12" />
-                        </View>
-                        <Text style={styles.microCardLabel}>Iron</Text>
-                      </View>
-                      <Text style={styles.microCardValue}>
-                        {result.micronutrients.iron_mg} <Text style={styles.microCardUnit}>mg</Text>
-                      </Text>
-                    </View>
-                  )}
-
-                  {result.micronutrients.calcium_mg !== undefined && result.micronutrients.calcium_mg > 0 && (
-                    <View style={styles.microCard}>
-                      <View style={styles.microCardHeader}>
-                        <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
-                          <CheckCircle2 size={11} color="#FF5B00" />
-                        </View>
-                        <Text style={styles.microCardLabel}>Calcium</Text>
-                      </View>
-                      <Text style={styles.microCardValue}>
-                        {result.micronutrients.calcium_mg} <Text style={styles.microCardUnit}>mg</Text>
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            )}
-
-            {/* Health Insight */}
-            {result.health_insight ? (
-              <View style={styles.insightBox}>
-                <Sparkles size={16} color="#FF5B00" style={{ marginTop: 2 }} />
-                <Text style={styles.insightText}>{result.health_insight}</Text>
-              </View>
-            ) : null}
           </ScrollView>
 
           {/* Action Buttons: Log vs Inspect Only */}
@@ -412,7 +478,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: '#EFE7DF',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   calorieLabel: {
     fontSize: 11,
@@ -436,6 +502,42 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#8C7B73',
   },
+
+  // Segmented Tab Switcher (Option 2A)
+  tabSwitcherContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#EFE7DF',
+    borderRadius: 24,
+    padding: 4,
+    marginBottom: 16,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: 20,
+    gap: 6,
+  },
+  tabButtonActive: {
+    backgroundColor: '#FF5B00',
+    shadowColor: '#FF5B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tabButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#7D6E66',
+  },
+  tabButtonTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+
   sectionHeader: {
     fontSize: 11,
     fontWeight: '800',
@@ -472,6 +574,46 @@ const styles = StyleSheet.create({
     color: '#8C7B73',
     marginTop: 2,
   },
+
+  // Macro Ratio Bar
+  macroRatioContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#EFE7DF',
+    marginBottom: 14,
+  },
+  macroRatioHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  macroRatioLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#8C7B73',
+    letterSpacing: 0.6,
+  },
+  macroRatioValue: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#2A1810',
+  },
+  macroRatioBar: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    gap: 2,
+    backgroundColor: '#EFE7DF',
+  },
+  ratioSegment: {
+    height: '100%',
+    borderRadius: 2,
+  },
+
   microSection: {
     marginBottom: 14,
   },
@@ -527,6 +669,7 @@ const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: '#FFDBC2',
+    marginTop: 8,
   },
   insightText: {
     flex: 1,
@@ -535,6 +678,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: '600',
   },
+
   // Detected Items Breakdown
   detectedItemsSection: {
     marginBottom: 14,

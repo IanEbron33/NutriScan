@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   analyzeFoodImages,
   FoodAnalysisResult,
@@ -33,6 +34,8 @@ import {
   Plus,
   ChevronDown,
   Lightbulb,
+  ShieldCheck,
+  ScanLine,
 } from '../components/ui/LucideIcons';
 
 const { width, height } = Dimensions.get('window');
@@ -51,6 +54,10 @@ interface ScannerScreenProps {
 export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   const { addMealLog } = useNutrition();
 
+  // Camera permissions & ref
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<any>(null);
+
   // Mode: 'camera' | 'manual'
   const [activeMode, setActiveMode] = useState<'camera' | 'manual'>('camera');
   const [flashEnabled, setFlashEnabled] = useState(false);
@@ -60,6 +67,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
 
   // Scanning & Result state
   const [isScanning, setIsScanning] = useState(false);
+  const [scanStepIndex, setScanStepIndex] = useState(0);
   const [analysisResult, setAnalysisResult] = useState<FoodAnalysisResult | null>(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
 
@@ -70,8 +78,42 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   const [manualCarbs, setManualCarbs] = useState('');
   const [manualFat, setManualFat] = useState('');
 
-  // Laser scanner animation
+  // Laser scanner & loading pulse animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Step cycling & pulse loop during scanning
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isScanning) {
+      setScanStepIndex(0);
+      interval = setInterval(() => {
+        setScanStepIndex((prev) => (prev < 2 ? prev + 1 : 0));
+      }, 1200);
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.15,
+            duration: 700,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 700,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isScanning]);
 
   useEffect(() => {
     Animated.loop(
@@ -109,43 +151,60 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     return null;
   };
 
-  // 1. Shutter Snap (Fills next open slot up to 3)
+  // 1. Shutter Snap (Takes photo directly from live CameraView or fallback)
   const handleShutterSnap = async () => {
     if (capturedImages.length >= 3) {
       Alert.alert('3 Slots Filled', 'You have captured all 3 photo slots. Tap Analyze or remove a photo to retake.');
       return;
     }
 
-    const ImagePicker = getSafeImagePicker();
-
-    // If native module is compiled into the APK, launch native camera
-    if (ImagePicker && ImagePicker.launchCameraAsync) {
+    // A. Primary: In-app live camera snapshot via CameraView
+    if (cameraRef.current && cameraRef.current.takePictureAsync) {
       try {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert('Camera Permission', 'Please allow camera access to take food photos.');
-          return;
-        }
-
-        const result = await ImagePicker.launchCameraAsync({
-          allowsEditing: false,
+        const photo = await cameraRef.current.takePictureAsync({
           quality: 0.7,
           base64: true,
+          skipProcessing: false,
         });
 
-        if (!result.canceled && result.assets?.[0]?.uri) {
+        if (photo?.uri) {
           setCapturedImages((prev) => [
             ...prev,
-            { uri: result.assets[0].uri, base64: result.assets[0].base64 || '' },
+            { uri: photo.uri, base64: photo.base64 || '' },
           ]);
           return;
         }
-      } catch (cameraErr) {
-        console.warn('Native camera capture error:', cameraErr);
+      } catch (camErr) {
+        console.warn('In-app CameraView takePictureAsync error:', camErr);
       }
     }
 
-    // Fallback: Seamlessly docks a test meal angle photo for instant multi-image testing
+    // B. Fallback: Native system camera intent via expo-image-picker
+    const ImagePicker = getSafeImagePicker();
+    if (ImagePicker && ImagePicker.launchCameraAsync) {
+      try {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (perm.granted) {
+          const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: false,
+            quality: 0.7,
+            base64: true,
+          });
+
+          if (!result.canceled && result.assets?.[0]?.uri) {
+            setCapturedImages((prev) => [
+              ...prev,
+              { uri: result.assets[0].uri, base64: result.assets[0].base64 || '' },
+            ]);
+            return;
+          }
+        }
+      } catch (cameraErr) {
+        console.warn('Native camera fallback error:', cameraErr);
+      }
+    }
+
+    // C. Fallback: Seamlessly docks a test meal angle photo for instant multi-image testing
     const nextPhotoIndex = capturedImages.length % FALLBACK_TEST_PHOTOS.length;
     const testPhotoUri = FALLBACK_TEST_PHOTOS[nextPhotoIndex];
     setCapturedImages((prev) => [...prev, { uri: testPhotoUri }]);
@@ -162,8 +221,8 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
 
     if (ImagePicker && ImagePicker.launchImageLibraryAsync) {
       try {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
           Alert.alert('Photo Access', 'Please allow photo library access to select food photos.');
           return;
         }
@@ -271,16 +330,59 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     setAnalysisResult(null);
   };
 
+  // Permission Request View (Rendered when camera permission is explicitly denied)
+  if (activeMode === 'camera' && permission && !permission.granted) {
+    return (
+      <SafeAreaView style={styles.permissionContainer}>
+        <StatusBar style="dark" />
+        <View style={styles.permissionCard}>
+          <View style={styles.permissionIconBadge}>
+            <Camera size={34} color="#FF5B00" />
+          </View>
+          <Text style={styles.permissionTitle}>Camera Access Required</Text>
+          <Text style={styles.permissionDescription}>
+            NutriScan needs camera access to scan food dishes and calculate nutritional macros in real-time.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.permissionButton}
+            onPress={requestPermission}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.permissionButtonText}>Grant Camera Access</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.permissionSecondaryButton}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.permissionSecondaryText}>Back to Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <View style={styles.fullscreenContainer}>
       <StatusBar style="light" />
 
       {/* ============================================================ */}
-      {/* MODE 1: ULTRA-CLEAN CAMERA VIEWFINDER (Matching Reference)   */}
+      {/* MODE 1: LIVE IN-APP CAMERA VIEWFINDER (`expo-camera`)         */}
       {/* ============================================================ */}
       {activeMode === 'camera' && (
         <View style={styles.viewfinderBackground}>
-          {/* Subtle Ambient Vignette & Warm Depth */}
+          {/* Live In-App Camera Feed Stream */}
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            enableTorch={flashEnabled}
+            mode="picture"
+          />
+
+          {/* Subtle Ambient Vignette & Depth Mask */}
           <View style={styles.ambientTopGlow} pointerEvents="none" />
           <View style={styles.ambientBottomGlow} pointerEvents="none" />
 
@@ -321,15 +423,6 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
           {/* Center Reticle Focus Box */}
           <View style={styles.centerReticleContainer}>
             <View style={[styles.reticleFrame, validImagesCount > 0 && styles.reticleFrameWithImage]}>
-              {/* Captured Image Preview if photo exists */}
-              {validImagesCount > 0 && capturedImages[validImagesCount - 1]?.uri ? (
-                <Image
-                  source={{ uri: capturedImages[validImagesCount - 1].uri }}
-                  style={styles.reticlePreviewImage}
-                  resizeMode="cover"
-                />
-              ) : null}
-
               {/* Animated Laser Scan Line */}
               <Animated.View
                 style={[
@@ -448,6 +541,8 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
       )}
 
       {/* ============================================================ */}
+
+      {/* ============================================================ */}
       {/* MODE 2: CLEAN MANUAL INPUT FORM                              */}
       {/* ============================================================ */}
       {activeMode === 'manual' && (
@@ -552,15 +647,51 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         </SafeAreaView>
       )}
 
-      {/* Scanning Fullscreen Loading Overlay */}
+      {/* Scanning Fullscreen Loading Overlay (Option 1A: Multi-Step Progress HUD) */}
       {isScanning && (
         <View style={styles.loadingOverlay}>
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#FF5B00" />
-            <Text style={styles.loadingTitle}>Analyzing Nutrition...</Text>
-            <Text style={styles.loadingSubtitle}>
-              Processing {validImagesCount} angle{validImagesCount > 1 ? 's' : ''} with Gemini 3.5 Flash-Lite
-            </Text>
+          <View style={styles.loadingCardHUD}>
+            {/* Glowing Pulse Ring with Step Icon */}
+            <View style={styles.loadingPulseContainer}>
+              <Animated.View style={[styles.loadingPulseHalo, { transform: [{ scale: pulseAnim }] }]} />
+              <View style={styles.loadingIconCore}>
+                {scanStepIndex === 0 && <ScanLine size={28} color="#FF5B00" />}
+                {scanStepIndex === 1 && <UtensilsCrossed size={28} color="#FF5B00" />}
+                {scanStepIndex === 2 && <Sparkles size={28} color="#FF5B00" />}
+              </View>
+            </View>
+
+            {/* NutriScan AI Vision Badge */}
+            <View style={styles.loadingBrandPill}>
+              <Sparkles size={11} color="#FF5B00" />
+              <Text style={styles.loadingBrandPillText}>NUTRISCAN AI VISION</Text>
+            </View>
+
+            <Text style={styles.loadingHUDTitle}>Analyzing Meal</Text>
+
+            {/* Dynamic Step Text */}
+            <View style={styles.loadingStepBox}>
+              <Text style={styles.loadingStepText}>
+                {scanStepIndex === 0
+                  ? 'Inspecting dish and portion volume...'
+                  : scanStepIndex === 1
+                  ? 'Identifying ingredients & food items...'
+                  : 'Calculating calories & nutritional macros...'}
+              </Text>
+            </View>
+
+            {/* 3 Step Pill Progress Bars */}
+            <View style={styles.stepProgressRow}>
+              {[0, 1, 2].map((stepIdx) => (
+                <View
+                  key={stepIdx}
+                  style={[
+                    styles.stepProgressBar,
+                    stepIdx <= scanStepIndex ? styles.stepProgressBarActive : styles.stepProgressBarInactive,
+                  ]}
+                />
+              ))}
+            </View>
           </View>
         </View>
       )}
@@ -931,30 +1062,186 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Loading Overlay
+  // Loading Overlay HUD (Option 1A)
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(20, 13, 9, 0.8)',
+    backgroundColor: 'rgba(15, 10, 7, 0.88)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
+    paddingHorizontal: 24,
   },
-  loadingBox: {
+  loadingCardHUD: {
+    backgroundColor: 'rgba(30, 20, 14, 0.96)',
+    borderRadius: 26,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 91, 0, 0.4)',
+    shadowColor: '#FF5B00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  loadingPulseContainer: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    position: 'relative',
+  },
+  loadingPulseHalo: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 91, 0, 0.15)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 91, 0, 0.45)',
+  },
+  loadingIconCore: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#2A1810',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FF5B00',
+  },
+  loadingBrandPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 91, 0, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 91, 0, 0.3)',
+  },
+  loadingBrandPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#FF7A29',
+    letterSpacing: 0.8,
+  },
+  loadingHUDTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FAF6F0',
+    marginBottom: 6,
+  },
+  loadingStepBox: {
+    minHeight: 24,
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  loadingStepText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#C4B5AC',
+    textAlign: 'center',
+  },
+  stepProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    paddingHorizontal: 12,
+  },
+  stepProgressBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  stepProgressBarActive: {
+    backgroundColor: '#FF5B00',
+  },
+  stepProgressBarInactive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+
+  // Permission Card
+  permissionContainer: {
+    flex: 1,
+    backgroundColor: '#FAF6F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  permissionCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 26,
+    padding: 28,
     alignItems: 'center',
-    gap: 10,
-    width: '82%',
+    borderWidth: 1.5,
+    borderColor: '#EFE7DF',
+    width: '100%',
+    maxWidth: 380,
+    shadowColor: '#2A1810',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
   },
-  loadingTitle: {
-    fontSize: 17,
+  permissionIconBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FFE0CC',
+  },
+  permissionTitle: {
+    fontSize: 20,
     fontWeight: '800',
     color: '#2A1810',
-  },
-  loadingSubtitle: {
-    fontSize: 12,
-    color: '#8C7B73',
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  permissionDescription: {
+    fontSize: 14,
+    color: '#7D6E66',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  permissionButton: {
+    backgroundColor: '#FF5B00',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#FF5B00',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  permissionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  permissionSecondaryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  permissionSecondaryText: {
+    color: '#8C7B73',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
