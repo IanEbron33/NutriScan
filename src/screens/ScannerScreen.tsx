@@ -32,20 +32,13 @@ import {
   UtensilsCrossed,
   X,
   Plus,
-  ChevronDown,
   Lightbulb,
   ShieldCheck,
   ScanLine,
+  Flame,
 } from '../components/ui/LucideIcons';
 
 const { width, height } = Dimensions.get('window');
-
-// High-resolution multi-angle food photos for instant testing before EAS dev rebuild
-const FALLBACK_TEST_PHOTOS = [
-  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&q=80', // Angle 1: Main Salad & Quinoa Plate
-  'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=900&q=80', // Angle 2: Salmon & Veggie Portion Depth
-  'https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=900&q=80', // Angle 3: Healthy Smoothie & Drink
-];
 
 interface ScannerScreenProps {
   onClose: () => void;
@@ -78,37 +71,68 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   const [manualCarbs, setManualCarbs] = useState('');
   const [manualFat, setManualFat] = useState('');
 
-  // Laser scanner & loading pulse animation
+  // Laser scanner, loading radar spin & floating card animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const slideUpAnim = useRef(new Animated.Value(50)).current;
+  const cardFadeAnim = useRef(new Animated.Value(0)).current;
+  const stepTextFadeAnim = useRef(new Animated.Value(1)).current;
 
-  // Step cycling & pulse loop during scanning
+  // Step cycling, radar spin & floating card entry during scanning
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isScanning) {
       setScanStepIndex(0);
+
+      // Slide & fade up floating bottom card
+      slideUpAnim.setValue(50);
+      cardFadeAnim.setValue(0);
+      Animated.parallel([
+        Animated.spring(slideUpAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cardFadeAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Continuous radar spin
+      spinAnim.setValue(0);
+      Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 2200,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+
       interval = setInterval(() => {
+        // Step text cross-fade
+        Animated.sequence([
+          Animated.timing(stepTextFadeAnim, {
+            toValue: 0.2,
+            duration: 80,
+            useNativeDriver: true,
+          }),
+          Animated.timing(stepTextFadeAnim, {
+            toValue: 1,
+            duration: 150,
+            useNativeDriver: true,
+          }),
+        ]).start();
+
         setScanStepIndex((prev) => (prev < 2 ? prev + 1 : 0));
       }, 1200);
-
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.15,
-            duration: 700,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 700,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
     } else {
-      pulseAnim.setValue(1);
+      slideUpAnim.setValue(50);
+      cardFadeAnim.setValue(0);
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -151,7 +175,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     return null;
   };
 
-  // 1. Shutter Snap (Takes photo directly from live CameraView or fallback)
+  // 1. Shutter Snap (Takes photo directly from live CameraView or native camera)
   const handleShutterSnap = async () => {
     if (capturedImages.length >= 3) {
       Alert.alert('3 Slots Filled', 'You have captured all 3 photo slots. Tap Analyze or remove a photo to retake.');
@@ -175,7 +199,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
           return;
         }
       } catch (camErr) {
-        console.warn('In-app CameraView takePictureAsync error:', camErr);
+        console.warn('In-app CameraView takePictureAsync notice:', camErr);
       }
     }
 
@@ -204,10 +228,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
       }
     }
 
-    // C. Fallback: Seamlessly docks a test meal angle photo for instant multi-image testing
-    const nextPhotoIndex = capturedImages.length % FALLBACK_TEST_PHOTOS.length;
-    const testPhotoUri = FALLBACK_TEST_PHOTOS[nextPhotoIndex];
-    setCapturedImages((prev) => [...prev, { uri: testPhotoUri }]);
+    Alert.alert('Capture Failed', 'Could not take photo. Please check camera permissions or select a photo from your gallery.');
   };
 
   // 2. Photo Gallery Picker (Fills next open slot up to 3)
@@ -242,13 +263,9 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         }
       } catch (galleryErr) {
         console.warn('Native gallery picker error:', galleryErr);
+        Alert.alert('Gallery Error', 'Could not select photo from gallery.');
       }
     }
-
-    // Fallback photo
-    const nextPhotoIndex = (capturedImages.length + 1) % FALLBACK_TEST_PHOTOS.length;
-    const testPhotoUri = FALLBACK_TEST_PHOTOS[nextPhotoIndex];
-    setCapturedImages((prev) => [...prev, { uri: testPhotoUri }]);
   };
 
   // Remove a photo from the 3-slot dock
@@ -398,11 +415,10 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
                 <X size={20} color="#FFFFFF" strokeWidth={2.5} />
               </TouchableOpacity>
 
-              {/* Center Mode Pill */}
+              {/* Center Mode Pill (Clean Badge) */}
               <View style={styles.centerModePill}>
                 <UtensilsCrossed size={14} color="#FFFFFF" />
                 <Text style={styles.centerModeText}>Multi-Item Plate</Text>
-                <ChevronDown size={14} color="#FFFFFF" />
               </View>
 
               {/* Flash Toggle */}
@@ -569,67 +585,98 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
               {/* Meal Name */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>MEAL / DISH NAME</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. Grilled Chicken Quinoa Bowl"
-                  placeholderTextColor="#A89A92"
-                  value={manualTitle}
-                  onChangeText={setManualTitle}
-                />
+                <View style={styles.inputWithIconWrapper}>
+                  <View style={styles.inputIconBox}>
+                    <UtensilsCrossed size={16} color="#FF5B00" />
+                  </View>
+                  <TextInput
+                    style={styles.textInputWithIcon}
+                    placeholder="e.g. Grilled Chicken Bowl"
+                    placeholderTextColor="#A89A92"
+                    value={manualTitle}
+                    onChangeText={setManualTitle}
+                  />
+                </View>
               </View>
 
               {/* Calories */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>CALORIES (KCAL)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g. 540"
-                  placeholderTextColor="#A89A92"
-                  keyboardType="numeric"
-                  value={manualCalories}
-                  onChangeText={setManualCalories}
-                />
+                <View style={styles.inputWithIconWrapper}>
+                  <View style={styles.inputIconBox}>
+                    <Flame size={16} color="#FF5B00" fill="#FF5B00" />
+                  </View>
+                  <TextInput
+                    style={styles.textInputWithIcon}
+                    placeholder="e.g. 540"
+                    placeholderTextColor="#A89A92"
+                    keyboardType="numeric"
+                    value={manualCalories}
+                    onChangeText={setManualCalories}
+                  />
+                </View>
               </View>
 
               {/* 3 Macro Fields in Row */}
-              <View style={styles.macrosInputRow}>
-                {/* Protein */}
-                <View style={styles.macroInputCol}>
-                  <Text style={[styles.inputLabel, { color: '#E54D42' }]}>PROTEIN (G)</Text>
-                  <TextInput
-                    style={[styles.textInput, { borderColor: '#FCDAD7' }]}
-                    placeholder="38"
-                    placeholderTextColor="#A89A92"
-                    keyboardType="numeric"
-                    value={manualProtein}
-                    onChangeText={setManualProtein}
-                  />
-                </View>
+              <View style={styles.macrosSection}>
+                <Text style={styles.inputLabel}>MACRONUTRIENTS (GRAMS)</Text>
+                <View style={styles.macrosInputRow}>
+                  {/* Protein */}
+                  <View style={[styles.macroInputCol, { backgroundColor: '#FFFDFD', borderColor: '#FCDAD7' }]}>
+                    <View style={styles.macroColHeader}>
+                      <View style={[styles.macroDot, { backgroundColor: '#E54D42' }]} />
+                      <Text style={[styles.macroColLabel, { color: '#E54D42' }]}>Protein</Text>
+                    </View>
+                    <View style={styles.macroValRow}>
+                      <TextInput
+                        style={styles.macroTextInput}
+                        placeholder="38"
+                        placeholderTextColor="#C4B5AC"
+                        keyboardType="numeric"
+                        value={manualProtein}
+                        onChangeText={setManualProtein}
+                      />
+                      <Text style={styles.macroUnitText}>g</Text>
+                    </View>
+                  </View>
 
-                {/* Carbs */}
-                <View style={styles.macroInputCol}>
-                  <Text style={[styles.inputLabel, { color: '#F39C12' }]}>CARBS (G)</Text>
-                  <TextInput
-                    style={[styles.textInput, { borderColor: '#FDEFD7' }]}
-                    placeholder="45"
-                    placeholderTextColor="#A89A92"
-                    keyboardType="numeric"
-                    value={manualCarbs}
-                    onChangeText={setManualCarbs}
-                  />
-                </View>
+                  {/* Carbs */}
+                  <View style={[styles.macroInputCol, { backgroundColor: '#FFFDFB', borderColor: '#FDEFD7' }]}>
+                    <View style={styles.macroColHeader}>
+                      <View style={[styles.macroDot, { backgroundColor: '#F39C12' }]} />
+                      <Text style={[styles.macroColLabel, { color: '#D97706' }]}>Carbs</Text>
+                    </View>
+                    <View style={styles.macroValRow}>
+                      <TextInput
+                        style={styles.macroTextInput}
+                        placeholder="45"
+                        placeholderTextColor="#C4B5AC"
+                        keyboardType="numeric"
+                        value={manualCarbs}
+                        onChangeText={setManualCarbs}
+                      />
+                      <Text style={styles.macroUnitText}>g</Text>
+                    </View>
+                  </View>
 
-                {/* Fat */}
-                <View style={styles.macroInputCol}>
-                  <Text style={[styles.inputLabel, { color: '#8B5A2B' }]}>FAT (G)</Text>
-                  <TextInput
-                    style={[styles.textInput, { borderColor: '#EFE7DF' }]}
-                    placeholder="16"
-                    placeholderTextColor="#A89A92"
-                    keyboardType="numeric"
-                    value={manualFat}
-                    onChangeText={setManualFat}
-                  />
+                  {/* Fat */}
+                  <View style={[styles.macroInputCol, { backgroundColor: '#FAF8F5', borderColor: '#EFE7DF' }]}>
+                    <View style={styles.macroColHeader}>
+                      <View style={[styles.macroDot, { backgroundColor: '#8B5A2B' }]} />
+                      <Text style={[styles.macroColLabel, { color: '#8B5A2B' }]}>Fats</Text>
+                    </View>
+                    <View style={styles.macroValRow}>
+                      <TextInput
+                        style={styles.macroTextInput}
+                        placeholder="16"
+                        placeholderTextColor="#C4B5AC"
+                        keyboardType="numeric"
+                        value={manualFat}
+                        onChangeText={setManualFat}
+                      />
+                      <Text style={styles.macroUnitText}>g</Text>
+                    </View>
+                  </View>
                 </View>
               </View>
 
@@ -647,40 +694,62 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         </SafeAreaView>
       )}
 
-      {/* Scanning Fullscreen Loading Overlay (Option 1A: Multi-Step Progress HUD) */}
+      {/* Scanning Floating Bottom Scanner Card (Option A - White Theme) */}
       {isScanning && (
-        <View style={styles.loadingOverlay}>
-          <View style={styles.loadingCardHUD}>
-            {/* Glowing Pulse Ring with Step Icon */}
-            <View style={styles.loadingPulseContainer}>
-              <Animated.View style={[styles.loadingPulseHalo, { transform: [{ scale: pulseAnim }] }]} />
-              <View style={styles.loadingIconCore}>
-                {scanStepIndex === 0 && <ScanLine size={28} color="#FF5B00" />}
-                {scanStepIndex === 1 && <UtensilsCrossed size={28} color="#FF5B00" />}
-                {scanStepIndex === 2 && <Sparkles size={28} color="#FF5B00" />}
+        <View style={styles.floatingScanningOverlay} pointerEvents="auto">
+          <Animated.View
+            style={[
+              styles.bottomScannerCard,
+              {
+                opacity: cardFadeAnim,
+                transform: [{ translateY: slideUpAnim }],
+              },
+            ]}
+          >
+            {/* Top Row: Rotating AI Radar Ring + Title & Step Info */}
+            <View style={styles.scannerCardTopRow}>
+              {/* Rotating AI Pulse Radar */}
+              <View style={styles.scannerRadarWrapper}>
+                <Animated.View
+                  style={[
+                    styles.scannerRadarSpinRing,
+                    {
+                      transform: [
+                        {
+                          rotate: spinAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '360deg'],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <View style={styles.scannerRadarCore}>
+                  {scanStepIndex === 0 && <ScanLine size={20} color="#FF5B00" />}
+                  {scanStepIndex === 1 && <UtensilsCrossed size={20} color="#FF5B00" />}
+                  {scanStepIndex === 2 && <Sparkles size={20} color="#FF5B00" />}
+                </View>
+              </View>
+
+              {/* Headline & Dynamic Step */}
+              <View style={styles.scannerCardTextCol}>
+                <Text style={styles.scannerHeadline}>Analyzing Meal...</Text>
+
+                <Animated.Text
+                  style={[styles.scannerStepSubtitle, { opacity: stepTextFadeAnim }]}
+                  numberOfLines={1}
+                >
+                  {scanStepIndex === 0
+                    ? 'Inspecting dish and portion volume...'
+                    : scanStepIndex === 1
+                    ? 'Identifying ingredients & food items...'
+                    : 'Calculating calories & nutritional macros...'}
+                </Animated.Text>
               </View>
             </View>
 
-            {/* NutriScan AI Vision Badge */}
-            <View style={styles.loadingBrandPill}>
-              <Sparkles size={11} color="#FF5B00" />
-              <Text style={styles.loadingBrandPillText}>NUTRISCAN AI VISION</Text>
-            </View>
-
-            <Text style={styles.loadingHUDTitle}>Analyzing Meal</Text>
-
-            {/* Dynamic Step Text */}
-            <View style={styles.loadingStepBox}>
-              <Text style={styles.loadingStepText}>
-                {scanStepIndex === 0
-                  ? 'Inspecting dish and portion volume...'
-                  : scanStepIndex === 1
-                  ? 'Identifying ingredients & food items...'
-                  : 'Calculating calories & nutritional macros...'}
-              </Text>
-            </View>
-
-            {/* 3 Step Pill Progress Bars */}
+            {/* 3-Step Pill Progress Track */}
             <View style={styles.stepProgressRow}>
               {[0, 1, 2].map((stepIdx) => (
                 <View
@@ -692,7 +761,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
                 />
               ))}
             </View>
-          </View>
+          </Animated.View>
         </View>
       )}
 
@@ -799,7 +868,7 @@ const styles = StyleSheet.create({
   reticleFrameWithImage: {
     borderStyle: 'solid',
     borderColor: '#FF5B00',
-    backgroundColor: '#000000',
+    backgroundColor: 'transparent',
   },
   reticlePreviewImage: {
     width: '100%',
@@ -974,7 +1043,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
   manualBackButton: {
     padding: 8,
@@ -993,17 +1062,23 @@ const styles = StyleSheet.create({
   },
   manualScrollContent: {
     paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 40,
   },
   manualCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 20,
+    borderRadius: 24,
+    padding: 22,
     borderWidth: 1.5,
     borderColor: '#EFE7DF',
+    shadowColor: '#2A1810',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
   },
   manualCardHeading: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
     color: '#2A1810',
     marginBottom: 4,
@@ -1011,36 +1086,92 @@ const styles = StyleSheet.create({
   manualCardSubtitle: {
     fontSize: 13,
     color: '#8C7B73',
-    marginBottom: 18,
+    marginBottom: 20,
+    lineHeight: 18,
   },
   inputGroup: {
-    marginBottom: 14,
+    marginBottom: 16,
   },
   inputLabel: {
     fontSize: 11,
     fontWeight: '800',
     color: '#8C7B73',
-    letterSpacing: 0.8,
-    marginBottom: 6,
+    letterSpacing: 0.7,
+    marginBottom: 8,
   },
-  textInput: {
+  inputWithIconWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FAF6F0',
-    borderRadius: 14,
-    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#EFE7DF',
+    paddingHorizontal: 12,
+  },
+  inputIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  textInputWithIcon: {
+    flex: 1,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '700',
     color: '#2A1810',
-    borderWidth: 1,
-    borderColor: '#EFE7DF',
+  },
+  macrosSection: {
+    marginBottom: 22,
   },
   macrosInputRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 20,
+    gap: 8,
   },
   macroInputCol: {
     flex: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  macroColHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  macroDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  macroColLabel: {
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  macroValRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  macroTextInput: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#2A1810',
+    textAlign: 'center',
+    minWidth: 32,
+    paddingVertical: 2,
+  },
+  macroUnitText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8C7B73',
   },
   primaryActionButton: {
     flexDirection: 'row',
@@ -1062,99 +1193,80 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Loading Overlay HUD (Option 1A)
-  loadingOverlay: {
+  // Floating Bottom Scanner Loading Card (Option A)
+  floatingScanningOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 10, 7, 0.88)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 10, 7, 0.45)',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 18,
+    paddingBottom: 26,
     zIndex: 1000,
-    paddingHorizontal: 24,
   },
-  loadingCardHUD: {
-    backgroundColor: 'rgba(30, 20, 14, 0.96)',
-    borderRadius: 26,
-    paddingVertical: 28,
-    paddingHorizontal: 22,
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 340,
+  bottomScannerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 91, 0, 0.4)',
-    shadowColor: '#FF5B00',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
+    borderColor: '#EFE7DF',
+    shadowColor: '#2A1810',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
     elevation: 8,
+    gap: 14,
   },
-  loadingPulseContainer: {
-    width: 80,
-    height: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    position: 'relative',
-  },
-  loadingPulseHalo: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 91, 0, 0.15)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 91, 0, 0.45)',
-  },
-  loadingIconCore: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#2A1810',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FF5B00',
-  },
-  loadingBrandPill: {
+  scannerCardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 91, 0, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 91, 0, 0.3)',
+    gap: 14,
   },
-  loadingBrandPillText: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#FF7A29',
-    letterSpacing: 0.8,
-  },
-  loadingHUDTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FAF6F0',
-    marginBottom: 6,
-  },
-  loadingStepBox: {
-    minHeight: 24,
+  scannerRadarWrapper: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    position: 'relative',
   },
-  loadingStepText: {
+  scannerRadarSpinRing: {
+    position: 'absolute',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 2,
+    borderColor: '#FF5B00',
+    borderStyle: 'dashed',
+  },
+  scannerRadarCore: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFDBC2',
+  },
+  scannerCardTextCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  scannerHeadline: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#2A1810',
+    marginBottom: 4,
+  },
+  scannerStepSubtitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#C4B5AC',
-    textAlign: 'center',
+    color: '#7D6E66',
   },
   stepProgressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     width: '100%',
-    paddingHorizontal: 12,
   },
   stepProgressBar: {
     flex: 1,
@@ -1165,7 +1277,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF5B00',
   },
   stepProgressBarInactive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: '#EFE7DF',
   },
 
   // Permission Card

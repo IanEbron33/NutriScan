@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,7 +8,9 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  Animated,
 } from 'react-native';
+import Svg, { Circle, G } from 'react-native-svg';
 import { FoodAnalysisResult } from '../../services/aiFoodScanner';
 import {
   Plus,
@@ -18,10 +20,15 @@ import {
   UtensilsCrossed,
   CheckCircle2,
   X,
-  PieChart,
 } from '../ui/LucideIcons';
 
 const { width } = Dimensions.get('window');
+
+// Donut Chart Math & Constants
+const DONUT_SIZE = 106;
+const DONUT_RADIUS = 42;
+const DONUT_STROKE = 11;
+const CIRCUMFERENCE = 2 * Math.PI * DONUT_RADIUS; // ~263.89
 
 interface NutritionResultModalProps {
   visible: boolean;
@@ -37,13 +44,53 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
   onDismiss,
 }) => {
   const [activeTab, setActiveTab] = useState<'macros' | 'micros'>('macros');
+  const tabAnim = useRef(new Animated.Value(0)).current;
+  const contentFadeAnim = useRef(new Animated.Value(1)).current;
 
   if (!result) return null;
 
+  const handleSwitchTab = (tab: 'macros' | 'micros') => {
+    if (tab === activeTab) return;
+
+    setActiveTab(tab);
+
+    // Smooth spring slide animation for active pill indicator
+    Animated.spring(tabAnim, {
+      toValue: tab === 'macros' ? 0 : 1,
+      useNativeDriver: false,
+      friction: 8,
+      tension: 60,
+    }).start();
+
+    // Subtle cross-fade for tab content
+    Animated.sequence([
+      Animated.timing(contentFadeAnim, {
+        toValue: 0.4,
+        duration: 70,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentFadeAnim, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
   const totalGrams = (result.protein_g || 0) + (result.carbs_g || 0) + (result.fat_g || 0);
-  const proteinPct = totalGrams > 0 ? Math.round(((result.protein_g || 0) / totalGrams) * 100) : 33;
-  const carbsPct = totalGrams > 0 ? Math.round(((result.carbs_g || 0) / totalGrams) * 100) : 33;
-  const fatPct = totalGrams > 0 ? Math.max(0, 100 - proteinPct - carbsPct) : 34;
+  const proteinPct = totalGrams > 0 ? Math.round(((result.protein_g || 0) / totalGrams) * 100) : 0;
+  const carbsPct = totalGrams > 0 ? Math.round(((result.carbs_g || 0) / totalGrams) * 100) : 0;
+  const fatPct = totalGrams > 0 ? Math.max(0, 100 - proteinPct - carbsPct) : 0;
+
+  // Exact arc lengths in circumference units
+  const pLen = totalGrams > 0 ? ((result.protein_g || 0) / totalGrams) * CIRCUMFERENCE : 0;
+  const cLen = totalGrams > 0 ? ((result.carbs_g || 0) / totalGrams) * CIRCUMFERENCE : 0;
+  const fLen = totalGrams > 0 ? ((result.fat_g || 0) / totalGrams) * CIRCUMFERENCE : 0;
+
+  // Arc offsets (rotated by -90deg so 0 is at top 12 o'clock)
+  const pOffset = 0;
+  const cOffset = -pLen;
+  const fOffset = -(pLen + cLen);
 
   return (
     <Modal
@@ -101,250 +148,316 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
               </View>
             </View>
 
-            {/* Segmented Pill Switcher (Option 2A) */}
+            {/* Segmented Pill Switcher with Smooth Sliding Indicator */}
             <View style={styles.tabSwitcherContainer}>
+              <Animated.View
+                style={[
+                  styles.activeIndicatorPill,
+                  {
+                    left: tabAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '50%'],
+                    }),
+                  },
+                ]}
+              />
+
               <TouchableOpacity
-                style={[styles.tabButton, activeTab === 'macros' && styles.tabButtonActive]}
-                onPress={() => setActiveTab('macros')}
-                activeOpacity={0.8}
+                style={styles.tabButton}
+                onPress={() => handleSwitchTab('macros')}
+                activeOpacity={0.85}
               >
-                <PieChart
-                  size={15}
-                  color={activeTab === 'macros' ? '#FFFFFF' : '#7D6E66'}
-                />
                 <Text style={[styles.tabButtonText, activeTab === 'macros' && styles.tabButtonTextActive]}>
                   Macronutrients
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.tabButton, activeTab === 'micros' && styles.tabButtonActive]}
-                onPress={() => setActiveTab('micros')}
-                activeOpacity={0.8}
+                style={styles.tabButton}
+                onPress={() => handleSwitchTab('micros')}
+                activeOpacity={0.85}
               >
-                <Sparkles
-                  size={15}
-                  color={activeTab === 'micros' ? '#FFFFFF' : '#7D6E66'}
-                />
                 <Text style={[styles.tabButtonText, activeTab === 'micros' && styles.tabButtonTextActive]}>
                   Micronutrients
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {/* TAB 1: MACRONUTRIENTS CONTENT */}
-            {activeTab === 'macros' && (
-              <View>
-                {/* 3 Macro Cards */}
-                <Text style={styles.sectionHeader}>TOTAL MACRONUTRIENTS</Text>
-                <View style={styles.macroRow}>
-                  {/* Protein */}
-                  <View style={[styles.macroCard, { borderColor: '#FCDAD7', backgroundColor: '#FFFDFD' }]}>
-                    <View style={[styles.macroDot, { backgroundColor: '#E54D42' }]} />
-                    <Text style={styles.macroGram}>{result.protein_g}g</Text>
-                    <Text style={styles.macroName}>Protein</Text>
-                  </View>
-
-                  {/* Carbs */}
-                  <View style={[styles.macroCard, { borderColor: '#FDEFD7', backgroundColor: '#FFFDFB' }]}>
-                    <View style={[styles.macroDot, { backgroundColor: '#F39C12' }]} />
-                    <Text style={styles.macroGram}>{result.carbs_g}g</Text>
-                    <Text style={styles.macroName}>Carbs</Text>
-                  </View>
-
-                  {/* Fats */}
-                  <View style={[styles.macroCard, { borderColor: '#EFE7DF', backgroundColor: '#FAF8F5' }]}>
-                    <View style={[styles.macroDot, { backgroundColor: '#8B5A2B' }]} />
-                    <Text style={styles.macroGram}>{result.fat_g}g</Text>
-                    <Text style={styles.macroName}>Fats</Text>
-                  </View>
-                </View>
-
-                {/* Macro Ratio Distribution Bar */}
-                {totalGrams > 0 && (
-                  <View style={styles.macroRatioContainer}>
-                    <View style={styles.macroRatioHeader}>
-                      <Text style={styles.macroRatioLabel}>MACRO DISTRIBUTION</Text>
-                      <Text style={styles.macroRatioValue}>
-                        {proteinPct}% P • {carbsPct}% C • {fatPct}% F
-                      </Text>
+            {/* TAB CONTENT (Animated Cross-Fade) */}
+            <Animated.View style={{ opacity: contentFadeAnim }}>
+              {/* TAB 1: MACRONUTRIENTS CONTENT */}
+              {activeTab === 'macros' && (
+                <View>
+                  {/* 3 Macro Cards */}
+                  <Text style={styles.sectionHeader}>TOTAL MACRONUTRIENTS</Text>
+                  <View style={styles.macroRow}>
+                    {/* Protein */}
+                    <View style={[styles.macroCard, { borderColor: '#FCDAD7', backgroundColor: '#FFFDFD' }]}>
+                      <View style={[styles.macroDot, { backgroundColor: '#E54D42' }]} />
+                      <Text style={styles.macroGram}>{result.protein_g}g</Text>
+                      <Text style={styles.macroName}>Protein</Text>
                     </View>
-                    <View style={styles.macroRatioBar}>
-                      <View style={[styles.ratioSegment, { flex: Math.max(proteinPct, 1), backgroundColor: '#E54D42' }]} />
-                      <View style={[styles.ratioSegment, { flex: Math.max(carbsPct, 1), backgroundColor: '#F39C12' }]} />
-                      <View style={[styles.ratioSegment, { flex: Math.max(fatPct, 1), backgroundColor: '#8B5A2B' }]} />
+
+                    {/* Carbs */}
+                    <View style={[styles.macroCard, { borderColor: '#FDEFD7', backgroundColor: '#FFFDFB' }]}>
+                      <View style={[styles.macroDot, { backgroundColor: '#F39C12' }]} />
+                      <Text style={styles.macroGram}>{result.carbs_g}g</Text>
+                      <Text style={styles.macroName}>Carbs</Text>
+                    </View>
+
+                    {/* Fats */}
+                    <View style={[styles.macroCard, { borderColor: '#EFE7DF', backgroundColor: '#FAF8F5' }]}>
+                      <View style={[styles.macroDot, { backgroundColor: '#8B5A2B' }]} />
+                      <Text style={styles.macroGram}>{result.fat_g}g</Text>
+                      <Text style={styles.macroName}>Fats</Text>
                     </View>
                   </View>
-                )}
 
-                {/* Detected Items on Plate / Table */}
-                {result.detected_items && result.detected_items.length > 0 && (
-                  <View style={styles.detectedItemsSection}>
-                    <Text style={[styles.sectionHeader, { marginTop: 12 }]}>
-                      DETECTED MEAL ITEMS ({result.detected_items.length})
-                    </Text>
-                    <View style={styles.itemsList}>
-                      {result.detected_items.map((item, idx) => (
-                        <View key={idx} style={styles.itemCard}>
-                          <View style={styles.itemHeader}>
-                            <View style={styles.itemTitleRow}>
-                              <View style={styles.itemIconContainer}>
-                                <UtensilsCrossed size={13} color="#FF5B00" />
-                              </View>
-                              <Text style={styles.itemTitle} numberOfLines={2}>
-                                {item.name}
+                  {/* Circular SVG Donut Diagram for Macro Distribution */}
+                  {totalGrams > 0 && (
+                    <View style={styles.circularRatioCard}>
+                      <Text style={styles.sectionHeader}>MACRO RATIO DISTRIBUTION</Text>
+
+                      <View style={styles.donutRow}>
+                        {/* SVG Donut Chart */}
+                        <View style={styles.donutContainer}>
+                          <Svg width={DONUT_SIZE} height={DONUT_SIZE} viewBox={`0 0 ${DONUT_SIZE} ${DONUT_SIZE}`}>
+                            <G rotation="-90" origin={`${DONUT_SIZE / 2}, ${DONUT_SIZE / 2}`}>
+                              {/* Background Track Circle */}
+                              <Circle
+                                cx={DONUT_SIZE / 2}
+                                cy={DONUT_SIZE / 2}
+                                r={DONUT_RADIUS}
+                                stroke="#F5ECE5"
+                                strokeWidth={DONUT_STROKE}
+                                fill="none"
+                              />
+                              {/* Protein Arc */}
+                              {pLen > 0 && (
+                                <Circle
+                                  cx={DONUT_SIZE / 2}
+                                  cy={DONUT_SIZE / 2}
+                                  r={DONUT_RADIUS}
+                                  stroke="#E54D42"
+                                  strokeWidth={DONUT_STROKE}
+                                  strokeDasharray={`${pLen} ${CIRCUMFERENCE}`}
+                                  strokeDashoffset={pOffset}
+                                  fill="none"
+                                />
+                              )}
+                              {/* Carbs Arc */}
+                              {cLen > 0 && (
+                                <Circle
+                                  cx={DONUT_SIZE / 2}
+                                  cy={DONUT_SIZE / 2}
+                                  r={DONUT_RADIUS}
+                                  stroke="#F39C12"
+                                  strokeWidth={DONUT_STROKE}
+                                  strokeDasharray={`${cLen} ${CIRCUMFERENCE}`}
+                                  strokeDashoffset={cOffset}
+                                  fill="none"
+                                />
+                              )}
+                              {/* Fats Arc */}
+                              {fLen > 0 && (
+                                <Circle
+                                  cx={DONUT_SIZE / 2}
+                                  cy={DONUT_SIZE / 2}
+                                  r={DONUT_RADIUS}
+                                  stroke="#8B5A2B"
+                                  strokeWidth={DONUT_STROKE}
+                                  strokeDasharray={`${fLen} ${CIRCUMFERENCE}`}
+                                  strokeDashoffset={fOffset}
+                                  fill="none"
+                                />
+                              )}
+                            </G>
+                          </Svg>
+
+                          {/* Center Total Weight inside Donut Hole */}
+                          <View style={styles.donutCenterLabel}>
+                            <Text style={styles.donutCenterNumber}>{totalGrams}g</Text>
+                            <Text style={styles.donutCenterSubtitle}>Total</Text>
+                          </View>
+                        </View>
+
+                        {/* Right Side Vertical Macro Legend Stack */}
+                        <View style={styles.legendContainer}>
+                          {/* Protein Item */}
+                          <View style={styles.legendRow}>
+                            <View style={styles.legendTitleSide}>
+                              <View style={[styles.legendDot, { backgroundColor: '#E54D42' }]} />
+                              <Text style={styles.legendLabel}>Protein</Text>
+                            </View>
+                            <View style={[styles.legendBadge, { backgroundColor: '#FDEEEB' }]}>
+                              <Text style={[styles.legendBadgeText, { color: '#E54D42' }]}>
+                                {result.protein_g}g ({proteinPct}%)
                               </Text>
                             </View>
-                            {item.portion ? (
-                              <View style={styles.portionBadge}>
-                                <Text style={styles.portionText}>{item.portion}</Text>
+                          </View>
+
+                          {/* Carbs Item */}
+                          <View style={styles.legendRow}>
+                            <View style={styles.legendTitleSide}>
+                              <View style={[styles.legendDot, { backgroundColor: '#F39C12' }]} />
+                              <Text style={styles.legendLabel}>Carbs</Text>
+                            </View>
+                            <View style={[styles.legendBadge, { backgroundColor: '#FEF6E9' }]}>
+                              <Text style={[styles.legendBadgeText, { color: '#D97706' }]}>
+                                {result.carbs_g}g ({carbsPct}%)
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Fats Item */}
+                          <View style={styles.legendRow}>
+                            <View style={styles.legendTitleSide}>
+                              <View style={[styles.legendDot, { backgroundColor: '#8B5A2B' }]} />
+                              <Text style={styles.legendLabel}>Fats</Text>
+                            </View>
+                            <View style={[styles.legendBadge, { backgroundColor: '#F4ECE4' }]}>
+                              <Text style={[styles.legendBadgeText, { color: '#8B5A2B' }]}>
+                                {result.fat_g}g ({fatPct}%)
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Detected Items on Plate / Table */}
+                  {result.detected_items && result.detected_items.length > 0 && (
+                    <View style={styles.detectedItemsSection}>
+                      <Text style={[styles.sectionHeader, { marginTop: 4 }]}>
+                        DETECTED MEAL ITEMS ({result.detected_items.length})
+                      </Text>
+                      <View style={styles.itemsList}>
+                        {result.detected_items.map((item, idx) => (
+                          <View key={idx} style={styles.itemCard}>
+                            <View style={styles.itemHeader}>
+                              <View style={styles.itemIconContainer}>
+                                <UtensilsCrossed size={14} color="#FF5B00" />
                               </View>
-                            ) : null}
-                          </View>
+                              <View style={styles.itemTitleBlock}>
+                                <Text style={styles.itemTitle}>{item.name}</Text>
+                                {item.portion ? (
+                                  <View style={styles.portionBadge}>
+                                    <Text style={styles.portionText}>{item.portion}</Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                            </View>
 
-                          <View style={styles.itemMacrosRow}>
-                            <View style={styles.miniMacroPill}>
-                              <Text style={styles.miniMacroCal}>{item.calories} kcal</Text>
-                            </View>
-                            <View style={styles.miniMacroPill}>
-                              <View style={[styles.miniDot, { backgroundColor: '#E54D42' }]} />
-                              <Text style={styles.miniMacroText}>{item.protein_g}g P</Text>
-                            </View>
-                            <View style={styles.miniMacroPill}>
-                              <View style={[styles.miniDot, { backgroundColor: '#F39C12' }]} />
-                              <Text style={styles.miniMacroText}>{item.carbs_g}g C</Text>
-                            </View>
-                            <View style={styles.miniMacroPill}>
-                              <View style={[styles.miniDot, { backgroundColor: '#8B5A2B' }]} />
-                              <Text style={styles.miniMacroText}>{item.fat_g}g F</Text>
+                            <View style={styles.itemMacrosRow}>
+                              <View style={styles.miniMacroPill}>
+                                <Text style={styles.miniMacroCal}>{item.calories} kcal</Text>
+                              </View>
+                              <View style={styles.miniMacroPill}>
+                                <View style={[styles.miniDot, { backgroundColor: '#E54D42' }]} />
+                                <Text style={styles.miniMacroText}>{item.protein_g}g P</Text>
+                              </View>
+                              <View style={styles.miniMacroPill}>
+                                <View style={[styles.miniDot, { backgroundColor: '#F39C12' }]} />
+                                <Text style={styles.miniMacroText}>{item.carbs_g}g C</Text>
+                              </View>
+                              <View style={styles.miniMacroPill}>
+                                <View style={[styles.miniDot, { backgroundColor: '#8B5A2B' }]} />
+                                <Text style={styles.miniMacroText}>{item.fat_g}g F</Text>
+                              </View>
                             </View>
                           </View>
-                        </View>
-                      ))}
+                        ))}
+                      </View>
                     </View>
-                  </View>
-                )}
-              </View>
-            )}
+                  )}
+                </View>
+              )}
 
-            {/* TAB 2: MICRONUTRIENTS CONTENT */}
-            {activeTab === 'micros' && (
-              <View>
-                {/* Comprehensive Estimated Micronutrients Grid */}
-                {result.micronutrients && (
-                  <View style={styles.microSection}>
-                    <Text style={styles.sectionHeader}>ESTIMATED MICRONUTRIENTS</Text>
-                    <View style={styles.microGrid}>
-                      {result.micronutrients.potassium_mg !== undefined && result.micronutrients.potassium_mg > 0 && (
-                        <View style={styles.microCard}>
-                          <View style={styles.microCardHeader}>
-                            <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
-                              <Sparkles size={11} color="#F39C12" />
-                            </View>
+              {/* TAB 2: MICRONUTRIENTS CONTENT */}
+              {activeTab === 'micros' && (
+                <View>
+                  {/* Comprehensive Estimated Micronutrients Grid */}
+                  {result.micronutrients && (
+                    <View style={styles.microSection}>
+                      <Text style={styles.sectionHeader}>ESTIMATED MICRONUTRIENTS</Text>
+                      <View style={styles.microGrid}>
+                        {result.micronutrients.potassium_mg !== undefined && result.micronutrients.potassium_mg > 0 && (
+                          <View style={styles.microCard}>
                             <Text style={styles.microCardLabel}>Potassium</Text>
+                            <Text style={styles.microCardValue}>
+                              {result.micronutrients.potassium_mg} <Text style={styles.microCardUnit}>mg</Text>
+                            </Text>
                           </View>
-                          <Text style={styles.microCardValue}>
-                            {result.micronutrients.potassium_mg} <Text style={styles.microCardUnit}>mg</Text>
-                          </Text>
-                        </View>
-                      )}
+                        )}
 
-                      {result.micronutrients.fiber_g !== undefined && result.micronutrients.fiber_g > 0 && (
-                        <View style={styles.microCard}>
-                          <View style={styles.microCardHeader}>
-                            <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
-                              <CheckCircle2 size={11} color="#2E7D32" />
-                            </View>
+                        {result.micronutrients.fiber_g !== undefined && result.micronutrients.fiber_g > 0 && (
+                          <View style={styles.microCard}>
                             <Text style={styles.microCardLabel}>Fiber</Text>
+                            <Text style={styles.microCardValue}>
+                              {result.micronutrients.fiber_g} <Text style={styles.microCardUnit}>g</Text>
+                            </Text>
                           </View>
-                          <Text style={styles.microCardValue}>
-                            {result.micronutrients.fiber_g} <Text style={styles.microCardUnit}>g</Text>
-                          </Text>
-                        </View>
-                      )}
+                        )}
 
-                      {result.micronutrients.vitamin_c_mg !== undefined && result.micronutrients.vitamin_c_mg > 0 && (
-                        <View style={styles.microCard}>
-                          <View style={styles.microCardHeader}>
-                            <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
-                              <Zap size={11} color="#FF5B00" />
-                            </View>
+                        {result.micronutrients.vitamin_c_mg !== undefined && result.micronutrients.vitamin_c_mg > 0 && (
+                          <View style={styles.microCard}>
                             <Text style={styles.microCardLabel}>Vitamin C</Text>
+                            <Text style={styles.microCardValue}>
+                              {result.micronutrients.vitamin_c_mg} <Text style={styles.microCardUnit}>mg</Text>
+                            </Text>
                           </View>
-                          <Text style={styles.microCardValue}>
-                            {result.micronutrients.vitamin_c_mg} <Text style={styles.microCardUnit}>mg</Text>
-                          </Text>
-                        </View>
-                      )}
+                        )}
 
-                      {result.micronutrients.vitamin_b6_mg !== undefined && result.micronutrients.vitamin_b6_mg > 0 && (
-                        <View style={styles.microCard}>
-                          <View style={styles.microCardHeader}>
-                            <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
-                              <Sparkles size={11} color="#FF5B00" />
-                            </View>
+                        {result.micronutrients.vitamin_b6_mg !== undefined && result.micronutrients.vitamin_b6_mg > 0 && (
+                          <View style={styles.microCard}>
                             <Text style={styles.microCardLabel}>Vitamin B6</Text>
+                            <Text style={styles.microCardValue}>
+                              {result.micronutrients.vitamin_b6_mg} <Text style={styles.microCardUnit}>mg</Text>
+                            </Text>
                           </View>
-                          <Text style={styles.microCardValue}>
-                            {result.micronutrients.vitamin_b6_mg} <Text style={styles.microCardUnit}>mg</Text>
-                          </Text>
-                        </View>
-                      )}
+                        )}
 
-                      {result.micronutrients.magnesium_mg !== undefined && result.micronutrients.magnesium_mg > 0 && (
-                        <View style={styles.microCard}>
-                          <View style={styles.microCardHeader}>
-                            <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
-                              <CheckCircle2 size={11} color="#2E7D32" />
-                            </View>
+                        {result.micronutrients.magnesium_mg !== undefined && result.micronutrients.magnesium_mg > 0 && (
+                          <View style={styles.microCard}>
                             <Text style={styles.microCardLabel}>Magnesium</Text>
+                            <Text style={styles.microCardValue}>
+                              {result.micronutrients.magnesium_mg} <Text style={styles.microCardUnit}>mg</Text>
+                            </Text>
                           </View>
-                          <Text style={styles.microCardValue}>
-                            {result.micronutrients.magnesium_mg} <Text style={styles.microCardUnit}>mg</Text>
-                          </Text>
-                        </View>
-                      )}
+                        )}
 
-                      {result.micronutrients.iron_mg !== undefined && result.micronutrients.iron_mg > 0 && (
-                        <View style={styles.microCard}>
-                          <View style={styles.microCardHeader}>
-                            <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
-                              <CheckCircle2 size={11} color="#F39C12" />
-                            </View>
+                        {result.micronutrients.iron_mg !== undefined && result.micronutrients.iron_mg > 0 && (
+                          <View style={styles.microCard}>
                             <Text style={styles.microCardLabel}>Iron</Text>
+                            <Text style={styles.microCardValue}>
+                              {result.micronutrients.iron_mg} <Text style={styles.microCardUnit}>mg</Text>
+                            </Text>
                           </View>
-                          <Text style={styles.microCardValue}>
-                            {result.micronutrients.iron_mg} <Text style={styles.microCardUnit}>mg</Text>
-                          </Text>
-                        </View>
-                      )}
+                        )}
 
-                      {result.micronutrients.calcium_mg !== undefined && result.micronutrients.calcium_mg > 0 && (
-                        <View style={styles.microCard}>
-                          <View style={styles.microCardHeader}>
-                            <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
-                              <CheckCircle2 size={11} color="#FF5B00" />
-                            </View>
+                        {result.micronutrients.calcium_mg !== undefined && result.micronutrients.calcium_mg > 0 && (
+                          <View style={styles.microCard}>
                             <Text style={styles.microCardLabel}>Calcium</Text>
+                            <Text style={styles.microCardValue}>
+                              {result.micronutrients.calcium_mg} <Text style={styles.microCardUnit}>mg</Text>
+                            </Text>
                           </View>
-                          <Text style={styles.microCardValue}>
-                            {result.micronutrients.calcium_mg} <Text style={styles.microCardUnit}>mg</Text>
-                          </Text>
-                        </View>
-                      )}
+                        )}
+                      </View>
                     </View>
-                  </View>
-                )}
+                  )}
 
-                {/* Health Insight */}
-                {result.health_insight ? (
-                  <View style={styles.insightBox}>
-                    <Sparkles size={16} color="#FF5B00" style={{ marginTop: 2 }} />
-                    <Text style={styles.insightText}>{result.health_insight}</Text>
-                  </View>
-                ) : null}
-              </View>
-            )}
+                  {/* Health Insight */}
+                  {result.health_insight ? (
+                    <View style={styles.insightBox}>
+                      <Sparkles size={16} color="#FF5B00" style={{ marginTop: 2 }} />
+                      <Text style={styles.insightText}>{result.health_insight}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+            </Animated.View>
           </ScrollView>
 
           {/* Action Buttons: Log vs Inspect Only */}
@@ -387,14 +500,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 30,
-    maxHeight: '90%',
+    paddingBottom: 28,
+    maxHeight: '92%',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   dragBarPlaceholder: {
     width: 32,
@@ -413,7 +526,7 @@ const styles = StyleSheet.create({
     borderColor: '#EFE7DF',
   },
   scrollContent: {
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
   multiImagesScroll: {
     gap: 10,
@@ -448,20 +561,20 @@ const styles = StyleSheet.create({
   },
   dishImage: {
     width: '100%',
-    height: 180,
+    height: 175,
     borderRadius: 20,
-    marginBottom: 14,
+    marginBottom: 12,
     borderWidth: 1.5,
     borderColor: '#EFE7DF',
   },
   imagePlaceholder: {
     width: '100%',
-    height: 140,
+    height: 130,
     borderRadius: 20,
     backgroundColor: '#FFF0E6',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
     borderWidth: 1.5,
     borderColor: '#FFDBC2',
   },
@@ -474,7 +587,8 @@ const styles = StyleSheet.create({
   calorieBanner: {
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    padding: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: '#EFE7DF',
@@ -503,33 +617,38 @@ const styles = StyleSheet.create({
     color: '#8C7B73',
   },
 
-  // Segmented Tab Switcher (Option 2A)
+  // Segmented Tab Switcher with Sliding Indicator
   tabSwitcherContainer: {
     flexDirection: 'row',
     backgroundColor: '#EFE7DF',
     borderRadius: 24,
-    padding: 4,
+    padding: 3,
     marginBottom: 16,
+    position: 'relative',
+    height: 44,
   },
-  tabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 9,
-    borderRadius: 20,
-    gap: 6,
-  },
-  tabButtonActive: {
+  activeIndicatorPill: {
+    position: 'absolute',
+    top: 3,
+    bottom: 3,
+    width: '50%',
     backgroundColor: '#FF5B00',
+    borderRadius: 21,
     shadowColor: '#FF5B00',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.28,
     shadowRadius: 4,
     elevation: 3,
   },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    zIndex: 1,
+  },
   tabButtonText: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '700',
     color: '#7D6E66',
   },
@@ -553,7 +672,8 @@ const styles = StyleSheet.create({
   macroCard: {
     flex: 1,
     borderRadius: 16,
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
     borderWidth: 1.5,
   },
@@ -575,43 +695,84 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Macro Ratio Bar
-  macroRatioContainer: {
+  // Circular Macro Ratio Card & Donut Chart
+  circularRatioCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 18,
+    padding: 14,
     borderWidth: 1.5,
     borderColor: '#EFE7DF',
     marginBottom: 14,
   },
-  macroRatioHeader: {
+  donutRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    gap: 16,
+    marginTop: 4,
   },
-  macroRatioLabel: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: '#8C7B73',
-    letterSpacing: 0.6,
+  donutContainer: {
+    width: DONUT_SIZE,
+    height: DONUT_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
-  macroRatioValue: {
-    fontSize: 11.5,
+  donutCenterLabel: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  donutCenterNumber: {
+    fontSize: 16,
     fontWeight: '800',
     color: '#2A1810',
   },
-  macroRatioBar: {
+  donutCenterSubtitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#8C7B73',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  legendContainer: {
+    flex: 1,
+    gap: 8,
+  },
+  legendRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FAF6F0',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EFE7DF',
+  },
+  legendTitleSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
     height: 8,
     borderRadius: 4,
-    overflow: 'hidden',
-    gap: 2,
-    backgroundColor: '#EFE7DF',
   },
-  ratioSegment: {
-    height: '100%',
-    borderRadius: 2,
+  legendLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#2A1810',
+  },
+  legendBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  legendBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
   },
 
   microSection: {
@@ -628,22 +789,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    padding: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1.5,
     borderColor: '#EFE7DF',
     gap: 4,
-  },
-  microCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  microIconBox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   microCardLabel: {
     fontSize: 12,
@@ -651,13 +801,12 @@ const styles = StyleSheet.create({
     color: '#8C7B73',
   },
   microCardValue: {
-    fontSize: 15,
+    fontSize: 16.5,
     fontWeight: '800',
     color: '#2A1810',
-    marginLeft: 26,
   },
   microCardUnit: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '700',
     color: '#8C7B73',
   },
@@ -690,41 +839,40 @@ const styles = StyleSheet.create({
   itemCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 12,
+    padding: 14,
     borderWidth: 1.5,
     borderColor: '#EFE7DF',
   },
   itemHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    gap: 8,
-  },
-  itemTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 6,
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    gap: 10,
   },
   itemIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 9,
     backgroundColor: '#FFF0E6',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 1,
+  },
+  itemTitleBlock: {
+    flex: 1,
+    gap: 4,
   },
   itemTitle: {
-    fontSize: 13.5,
-    fontWeight: '700',
+    fontSize: 14.5,
+    fontWeight: '800',
     color: '#2A1810',
-    flex: 1,
+    lineHeight: 20,
   },
   portionBadge: {
+    alignSelf: 'flex-start',
     backgroundColor: '#FFF0E6',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 2.5,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#FFDBC2',
@@ -744,8 +892,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FAF6F0',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
     borderRadius: 8,
     gap: 4,
   },
@@ -766,7 +914,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     gap: 10,
-    marginTop: 8,
+    marginTop: 6,
   },
   primaryButton: {
     backgroundColor: '#FF5B00',
