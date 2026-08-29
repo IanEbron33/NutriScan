@@ -4,6 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../services/supabase';
 import { configureGoogleSignIn, signInWithGoogle as performGoogleSignIn, signOutGoogle } from '../services/googleAuth';
 import { Profile } from '../types/database';
+import { getLocalProfile, saveLocalProfile } from '../services/localDatabase';
 
 interface AuthContextType {
   user: User | null;
@@ -30,20 +31,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (currentUser: User) => {
     try {
-      // 1. Check local device SecureStore cache
-      let localOnboarded = false;
-      let localData: Partial<Profile> | null = null;
+      // 1. Check local SQLite cache first (instant offline read)
+      const localSqliteProfile = getLocalProfile(currentUser.id);
+
+      // 2. Check local device SecureStore cache
+      let localOnboarded = localSqliteProfile?.is_onboarded || false;
+      let localData: Partial<Profile> | null = localSqliteProfile;
       try {
         const cached = await SecureStore.getItemAsync(`nutriscan_onboarded_${currentUser.id}`);
         if (cached) {
-          localData = JSON.parse(cached);
-          localOnboarded = localData?.is_onboarded ?? false;
+          const parsed = JSON.parse(cached);
+          localOnboarded = localOnboarded || (parsed?.is_onboarded ?? false);
+          localData = { ...localData, ...parsed };
         }
       } catch (storeErr) {
         console.warn('Could not read secure store cache:', storeErr);
       }
 
-      // 2. Query Supabase profiles table
+      // If we have local profile, set immediately for 0ms startup
+      if (localSqliteProfile) {
+        setProfile(localSqliteProfile);
+      }
+
+      // 3. Query Supabase profiles table
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -55,18 +65,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const dbOnboarded = data?.is_onboarded === true;
       const isOnboarded = dbOnboarded || cloudOnboarded || localOnboarded;
 
+      let resolvedProfile: Profile;
+
       if (data && !error) {
-        setProfile({
+        resolvedProfile = {
           ...(data as Profile),
           is_onboarded: isOnboarded,
           daily_calorie_target: data.daily_calorie_target || meta.daily_calorie_target || localData?.daily_calorie_target || 2400,
           daily_protein_target: data.daily_protein_target || meta.daily_protein_target || localData?.daily_protein_target || 120,
           daily_carbs_target: data.daily_carbs_target || meta.daily_carbs_target || localData?.daily_carbs_target || 250,
           daily_fat_target: data.daily_fat_target || meta.daily_fat_target || localData?.daily_fat_target || 70,
-        });
+        };
       } else {
-        // Fallback to Google / Auth metadata and SecureStore cache
-        setProfile({
+        // Fallback to Google / Auth metadata and local SQLite cache
+        resolvedProfile = {
           id: currentUser.id,
           email: currentUser.email || null,
           full_name: meta.full_name || meta.name || currentUser.email?.split('@')[0] || 'User',
@@ -83,8 +95,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           activity_level: meta.activity_level || localData?.activity_level,
           primary_goal: meta.primary_goal || localData?.primary_goal,
           streak_days: 1,
-        });
+        };
       }
+
+      setProfile(resolvedProfile);
+      // Cache profile into local SQLite
+      saveLocalProfile(resolvedProfile);
     } catch (err) {
       console.warn('Could not fetch database profile, using session metadata fallback:', err);
     }
@@ -214,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Could not write to secure store:', storeErr);
     }
 
-    // 3. Layer 3: Database Table Upsert
+    // 3. Layer 3: Database Table Upsert & Local SQLite Save
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -230,12 +246,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (!error && data) {
         setProfile(data as Profile);
+        saveLocalProfile(data as Profile);
       } else {
-        setProfile((prev) => (prev ? { ...prev, ...updatedPayload, is_onboarded: true } : null));
+        const fallbackProfile = profile ? { ...profile, ...updatedPayload, is_onboarded: true } as Profile : null;
+        setProfile(fallbackProfile);
+        if (fallbackProfile) saveLocalProfile(fallbackProfile);
       }
     } catch (err) {
       console.warn('Error completing onboarding in database:', err);
-      setProfile((prev) => (prev ? { ...prev, ...updatedPayload, is_onboarded: true } : null));
+      const fallbackProfile = profile ? { ...profile, ...updatedPayload, is_onboarded: true } as Profile : null;
+      setProfile(fallbackProfile);
+      if (fallbackProfile) saveLocalProfile(fallbackProfile);
     }
   };
 

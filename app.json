@@ -48,7 +48,8 @@
         {
           "cameraPermission": "NutriScan requires camera access to scan and analyze food nutrition in real-time."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "extra": {
       "eas": {

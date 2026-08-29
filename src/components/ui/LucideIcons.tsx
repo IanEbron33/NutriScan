@@ -748,3 +748,177 @@ export const ImageIcon: React.FC<IconProps> = ({
   </Svg>
 );
 
+export const Send: React.FC<IconProps> = ({
+  size = 20,
+  color = '#FFFFFF',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="m22 2-7 20-4-9-9-4Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M22 2 11 13"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Bot: React.FC<IconProps> = ({
+  size = 22,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M12 8V4H8"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Rect width="16" height="12" x="4" y="8" rx="2" stroke={color} strokeWidth={strokeWidth} />
+    <Path d="M2 14h2M20 14h2M15 13v2M9 13v2" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+  </Svg>
+);
+
+export const RefreshCw: React.FC<IconProps> = ({
+  size = 18,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path d="M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M8 16H3v5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+export const Trash2: React.FC<IconProps> = ({
+  size = 18,
+  color = '#C62828',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const ChevronLeft: React.FC<IconProps> = ({
+  size = 24,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="m15 18-6-6 6-6"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Edit3: React.FC<IconProps> = ({
+  size = 18,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Sliders: React.FC<IconProps> = ({
+  size = 20,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Line x1="4" x2="4" y1="21" y2="14" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="4" x2="4" y1="10" y2="3" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="12" x2="12" y1="21" y2="12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="12" x2="12" y1="8" y2="3" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="20" x2="20" y1="21" y2="16" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="20" x2="20" y1="12" y2="3" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="1" x2="7" y1="14" y2="14" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="9" x2="15" y1="8" y2="8" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="17" x2="23" y1="16" y2="16" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+  </Svg>
+);
+
+export const Bell: React.FC<IconProps> = ({
+  size = 20,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M10.3 21a1.94 1.94 0 0 0 3.4 0"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Clock: React.FC<IconProps> = ({
+  size = 18,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={strokeWidth} />
+    <Path
+      d="M12 6v6l4 2"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+

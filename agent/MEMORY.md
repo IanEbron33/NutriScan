@@ -2,7 +2,7 @@
 
 ## 1. Project Overview & Environment
 - **Framework**: Expo SDK 54 (`~54.0.37`), React Native 0.81.5, React 19.1.0 (`newArchEnabled: true`)
-- **Key Dependencies**: `expo-camera` (`~17.0.10`), `expo-image-picker` (`~17.0.11`), `expo-image-manipulator` (`~14.0.8`), `@react-native-google-signin/google-signin` (`^13.1.0`), `@supabase/supabase-js` (`^2.49.1`), `lucide-react-native` (`^1.33.0`), `react-native-svg` (`15.12.1`).
+- **Key Dependencies**: `expo-camera` (`~17.0.10`), `expo-image-picker` (`~17.0.11`), `expo-image-manipulator` (`~14.0.8`), `@react-native-google-signin/google-signin` (`^13.1.0`), `@supabase/supabase-js` (`^2.49.1`), `lucide-react-native` (`^1.33.0`), `react-native-svg` (`15.12.1`), `expo-sqlite` (`~15.1.2`).
 - **App Name**: NutriScan
 - **Android Package**: `com.nutriscan.app`
 - **EAS Project ID**: `2fb438cf-c5b0-42c3-b0be-202024508f8a`
@@ -37,34 +37,39 @@
   - 60fps directional slide & fade wizard transitions with animated progress bar.
   - Official Lucide `biceps-flexed` SVG vector icon for *"Build Muscle & Mass"*.
 - **Phase 2 (Live Animated Dashboard Screen)**:
-  - Top app bar + personalized greeting + vector `Flame` streak badge.
+  - Top app bar + streak badge in header (`🔥 12 Days`).
   - 100% solid, smooth, unbroken circular calorie gauge with animated progress arc (`#8B4513`).
   - Animated Daily Macros Card (Protein `#E54D42`, Carbs `#F39C12`, Fats `#8B5A2B`).
   - Horizontal Micronutrients Snapshot (Vitamin C, Iron, Calcium).
   - 5-Tab floating bottom navigation bar with raised center `#FF5B00` camera button.
 - **Phase 3 (AI Food Scanner & Result Sheet UX Upgrades)**:
-  - **Embedded Live Camera Stream & Multi-Slot Dock**:
-    - Full-bleed `CameraView` embedded under the transparent dashed reticle frame.
-    - Completely eliminated hardcoded/mock fallback images for 100% authentic live camera captures.
-    - 3-slot capture dock supporting multi-angle plate photos with delete actions.
-  - **White Floating Bottom Scanner Loading Card**:
-    - Non-blocking elevated white card (`#FFFFFF`) with 360° rotating dashed AI radar ring, cycling Lucide icons, dynamic step ticker, and 3-step progress bar.
-    - Removed redundant `"NUTRISCAN AI VISION"` badge.
-  - **Segmented Nutrition Result Modal (`NutritionResultModal.tsx`)**:
-    - Smooth animated sliding capsule tab switcher with spring dampening physics (no icons on switcher pills).
-    - **Circular SVG Donut Chart**: Multi-segment SVG donut gauge (`106×106px`) for macro distribution with vertical stacked legend on the right, completely resolving horizontal text clipping.
-    - **Detected Items Breakdown**: Redesigned stacked meal item cards preventing title truncation on long names.
-    - **Micronutrients Tab**: Clean 2-column minimalist typography cards with all icons removed.
-  - **Manual Entry Form Overhaul**:
-    - Resolved `PROTEIN (G)` line wrapping bug that previously caused jagged vertical misalignment across macro inputs.
-    - 3 horizontally aligned, color-coded macro mini-cards (🔴 Protein, 🟡 Carbs, 🟤 Fats) with `"g"` unit tags.
-    - Added leading Lucide icon containers for Meal / Dish Name (`UtensilsCrossed`) and Calories (`Flame`).
-    - Cleaned up top bar mode pill (`Multi-Item Plate`) by removing the misleading dropdown chevron.
-  - **Full-Bleed Centered App Icon Assets**:
-    - Converted custom brand icon into 1024×1024 full-bleed PNGs (`icon.png`, `adaptive-icon.png`, `splash-icon.png`, `favicon.png`).
-    - Centered emblem at `(512, 512)` with balanced margins for all Android adaptive launcher shapes.
+  - Full-bleed `CameraView` embedded under transparent dashed reticle frame.
+  - 3-slot capture dock supporting multi-angle plate photos with delete actions.
+  - White floating bottom loading card with 360° rotating dashed radar ring.
+  - Segmented Nutrition Result Modal (`NutritionResultModal.tsx`) with multi-segment SVG donut chart.
+  - Manual entry form with color-coded macro cards and leading Lucide icons.
+- **Phase 4 (Food Diary, AI Coach, Profile & Custom Modals Architecture)**:
+  - **Diary Tab (`DiaryTab.tsx`)**:
+    - Month header with `< Month Year >` indicator and centered 14-day horizontal date strip capsules (`52x70`) with auto-scroll to today.
+    - Option A Calories Consumed card with hero calorie counter, horizontal progress bar, and 3 stacked macro cards.
+  - **AI Nutrition Coach Tab (`AiCoachTab.tsx`)**:
+    - Native `Keyboard.addListener` tracking exact `keyboardHeight` + 36px clearance above Android keyboard and bottom navigation.
+    - Compact typography (`12.5px`), dynamic conversation context with user's remaining macros, instant preset food logging.
+  - **Profile & Settings Tab (`ProfileTab.tsx`)**:
+    - Full email display, removed verified green pill and offline sync box.
+    - Customizable meal reminder times (Breakfast, Lunch, Dinner) with interactive Time Picker Modal.
+    - Units selector (`Metric` vs `Imperial`) and clean Sign Out list row item.
+  - **Modern Horizon Meal Cards (Home & Diary)**:
+    - Clean 2-row information hierarchy: Dish title + Calorie count on top row, timestamp sub-line, pastel macro pills (`#FFECEB` Protein, `#FEF6E9` Carbs, `#F5EFEA` Fat) + navigation chevron on bottom row.
+  - **Interactive Full Meal Details Modal (`MealDetailsModal.tsx`)**:
+    - Slide-up bottom sheet with large photo banner, energy value callout, 3-part macro distribution bar, detected components itemization, and "Micronutrients Breakdown" grid.
+    - High-visibility circular orange `X` close button (`#FFF0E6` background).
+  - **Custom NutriScan Dialogs (`CustomConfirmModal.tsx`)**:
+    - Bespoke warm confirmation dialog replacing all generic gray OS `Alert.alert` system popups across the app (meal deletion, resetting intake tracker, and signing out).
+  - **Streamlined Home Header (`DashboardScreen.tsx`)**:
+    - Removed greeting text, integrated streak badge (`🔥 12 Days`) directly into the top navigation header.
 
 ## 5. Next Recommended Milestones
-- **Phase 4**: "Today's Meals" Timeline & Diary History on the Dashboard.
 - **Phase 5**: Barcode & Nutrition Label UPC scanner.
 - **Phase 6**: Weekly / Monthly Nutrition Insights & Trends Charts.
+- **Phase 7**: Custom Water Intake Tracker widget.

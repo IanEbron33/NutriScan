@@ -9,13 +9,20 @@ import {
   Dimensions,
   Animated,
   Easing,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Svg, { Circle, G } from 'react-native-svg';
 import { useAuth } from '../context/AuthContext';
-import { useNutrition } from '../context/NutritionContext';
+import { useNutrition, MealLog } from '../context/NutritionContext';
 import { ScannerScreen } from './ScannerScreen';
+import { DiaryTab } from '../components/tabs/DiaryTab';
+import { AiCoachTab } from '../components/tabs/AiCoachTab';
+import { ProfileTab } from '../components/tabs/ProfileTab';
+import { MealDetailsModal } from '../components/modals/MealDetailsModal';
+import { DbMealLog } from '../types/database';
 import {
   UtensilsCrossed,
   Flame,
@@ -31,6 +38,9 @@ import {
   UserIcon,
   LogOut,
   Plus,
+  Sparkles,
+  Clock,
+  ChevronRight,
 } from '../components/ui/LucideIcons';
 
 const { width } = Dimensions.get('window');
@@ -39,11 +49,26 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export const DashboardScreen: React.FC = () => {
   const { user, profile, signOut } = useAuth();
-  const { todayCalories, todayProtein, todayCarbs, todayFat, todayMicros, loggedMeals } = useNutrition();
+  const { todayCalories, todayProtein, todayCarbs, todayFat, todayMicros, loggedMeals, deleteMeal } = useNutrition();
 
-  const [activeTab, setActiveTab] = useState<'home' | 'diary' | 'scan' | 'insights' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'diary' | 'coach' | 'profile'>('home');
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [selectedMealForDetails, setSelectedMealForDetails] = useState<MealLog | DbMealLog | null>(null);
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvt, () => setIsKeyboardOpen(true));
+    const hideSub = Keyboard.addListener(hideEvt, () => setIsKeyboardOpen(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Entrance animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -119,66 +144,46 @@ export const DashboardScreen: React.FC = () => {
       <View style={styles.glowTopRight} pointerEvents="none" />
       <View style={styles.glowBottomLeft} pointerEvents="none" />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          }}
+      {activeTab === 'home' && (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
+          <Animated.View
+            style={{
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            }}
+          >
           {/* 1. Top App Bar */}
           <View style={styles.topBar}>
             <View style={styles.brandRow}>
               <View style={styles.brandLogoBox}>
                 <UtensilsCrossed size={18} color="#FF5B00" />
               </View>
-              <Text style={styles.brandText}>Dashboard</Text>
+              <Text style={styles.brandText}>NutriScan</Text>
             </View>
 
-            <TouchableOpacity
-              onPress={() => setShowSignOutModal((prev) => !prev)}
-              activeOpacity={0.8}
-            >
-              {profile?.avatar_url ? (
-                <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
-                    {firstName.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
+            <View style={styles.topBarRightCol}>
+              <View style={styles.streakPill}>
+                <Flame size={14} color="#FF5B00" fill="#FF5B00" />
+                <Text style={styles.streakText}>{streakDays} Days</Text>
+              </View>
 
-          {/* Quick Sign Out Popover */}
-          {showSignOutModal && (
-            <View style={styles.signOutPopover}>
-              <Text style={styles.popoverEmail}>{user?.email}</Text>
               <TouchableOpacity
-                style={styles.popoverSignOutButton}
-                onPress={signOut}
+                onPress={() => setActiveTab('profile')}
                 activeOpacity={0.8}
               >
-                <LogOut size={14} color="#FF5B00" style={{ marginRight: 6 }} />
-                <Text style={styles.popoverSignOutText}>Sign Out</Text>
+                {profile?.avatar_url ? (
+                  <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Text style={styles.avatarText}>
+                      {firstName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
-            </View>
-          )}
-
-          {/* 2. Personalized Greeting & Streak */}
-          <View style={styles.greetingRow}>
-            <View style={styles.greetingTextCol}>
-              <Text style={styles.greetingTitle}>Hello, {firstName}!</Text>
-              <Text style={styles.greetingSubtitle}>Let's keep the momentum going.</Text>
-            </View>
-
-            <View style={styles.streakPill}>
-              <Flame size={16} color="#FF5B00" fill="#FF5B00" />
-              <Text style={styles.streakText}>{streakDays} Days</Text>
             </View>
           </View>
 
@@ -413,7 +418,11 @@ export const DashboardScreen: React.FC = () => {
                     </View>
 
                     {/* Meal Card */}
-                    <View style={styles.mealCard}>
+                    <TouchableOpacity
+                      style={styles.mealCard}
+                      onPress={() => setSelectedMealForDetails(meal)}
+                      activeOpacity={0.75}
+                    >
                       {meal.image_uri ? (
                         <Image
                           source={{ uri: meal.image_uri }}
@@ -422,41 +431,52 @@ export const DashboardScreen: React.FC = () => {
                         />
                       ) : (
                         <View style={styles.mealCardThumbPlaceholder}>
-                          <UtensilsCrossed size={18} color="#FF5B00" />
+                          <UtensilsCrossed size={20} color="#FF5B00" />
                         </View>
                       )}
 
                       <View style={styles.mealCardInfo}>
-                        <Text style={styles.mealCardTitle} numberOfLines={1}>
-                          {meal.dish_name}
-                        </Text>
-                        <Text style={styles.mealCardTime}>
-                          {meal.source === 'ai_scan' ? 'AI Scan' : 'Manual'} • {meal.logged_at}
-                        </Text>
-                        <View style={styles.mealCardMacroTags}>
-                          <View style={styles.macroTag}>
-                            <Text style={[styles.macroTagText, { color: '#E54D42' }]}>
-                              {meal.protein_g}g P
-                            </Text>
-                          </View>
-                          <View style={styles.macroTag}>
-                            <Text style={[styles.macroTagText, { color: '#F39C12' }]}>
-                              {meal.carbs_g}g C
-                            </Text>
-                          </View>
-                          <View style={styles.macroTag}>
-                            <Text style={[styles.macroTagText, { color: '#8B5A2B' }]}>
-                              {meal.fat_g}g F
-                            </Text>
+                        {/* Row 1: Dish Title (Left) + Calorie Badge (Right) */}
+                        <View style={styles.mealCardTopRow}>
+                          <Text style={styles.mealCardTitle} numberOfLines={1}>
+                            {meal.dish_name}
+                          </Text>
+                          <View style={styles.mealCardCalorieWrap}>
+                            <Text style={styles.mealCardCalorieNumber}>{meal.calories}</Text>
+                            <Text style={styles.mealCardCalorieUnit}>kcal</Text>
                           </View>
                         </View>
-                      </View>
 
-                      <View style={styles.mealCardCalorieCol}>
-                        <Text style={styles.mealCardCalorieNumber}>{meal.calories}</Text>
-                        <Text style={styles.mealCardCalorieUnit}>kcal</Text>
+                        {/* Row 2: Time */}
+                        <View style={styles.mealCardTimeRow}>
+                          <Clock size={11} color="#8C7B73" />
+                          <Text style={styles.mealCardTime}>{meal.logged_at}</Text>
+                        </View>
+
+                        {/* Row 3: Macro Tags (Left) + Chevron (Right) */}
+                        <View style={styles.mealCardBottomRow}>
+                          <View style={styles.mealCardMacroTags}>
+                            <View style={[styles.macroTag, { backgroundColor: '#FFECEB' }]}>
+                              <Text style={[styles.macroTagText, { color: '#E54D42' }]}>
+                                {meal.protein_g}g P
+                              </Text>
+                            </View>
+                            <View style={[styles.macroTag, { backgroundColor: '#FEF6E9' }]}>
+                              <Text style={[styles.macroTagText, { color: '#F39C12' }]}>
+                                {meal.carbs_g}g C
+                              </Text>
+                            </View>
+                            <View style={[styles.macroTag, { backgroundColor: '#F5EFEA' }]}>
+                              <Text style={[styles.macroTagText, { color: '#8B5A2B' }]}>
+                                {meal.fat_g}g F
+                              </Text>
+                            </View>
+                          </View>
+
+                          <ChevronRight size={14} color="#C4B5A5" />
+                        </View>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   </View>
                 ))}
 
@@ -481,73 +501,99 @@ export const DashboardScreen: React.FC = () => {
           </View>
         </Animated.View>
       </ScrollView>
+      )}
+
+      {/* Full Meal Details Modal for Home Screen */}
+      <MealDetailsModal
+        meal={selectedMealForDetails}
+        visible={!!selectedMealForDetails}
+        onClose={() => setSelectedMealForDetails(null)}
+        onDelete={(mealId) => deleteMeal(mealId)}
+      />
+
+      {/* 2. Diary Tab */}
+      {activeTab === 'diary' && (
+        <DiaryTab onOpenScanner={() => setIsScannerOpen(true)} />
+      )}
+
+      {/* 3. AI Coach Tab */}
+      {activeTab === 'coach' && (
+        <AiCoachTab />
+      )}
+
+      {/* 4. Profile & Settings Tab */}
+      {activeTab === 'profile' && (
+        <ProfileTab />
+      )}
 
       {/* 6. 5-Tab Floating Bottom Navigation Bar */}
-      <View style={styles.tabBarContainer}>
-        <View style={styles.tabBar}>
-          {/* Home Tab */}
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('home')}
-            activeOpacity={0.7}
-          >
-            <Home size={22} color={activeTab === 'home' ? '#FF5B00' : '#8C7B73'} strokeWidth={2.2} />
-            <Text style={[styles.tabLabel, activeTab === 'home' && styles.tabLabelActive]}>
-              Home
-            </Text>
-          </TouchableOpacity>
-
-          {/* Diary Tab */}
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('diary')}
-            activeOpacity={0.7}
-          >
-            <Calendar size={22} color={activeTab === 'diary' ? '#FF5B00' : '#8C7B73'} />
-            <Text style={[styles.tabLabel, activeTab === 'diary' && styles.tabLabelActive]}>
-              Diary
-            </Text>
-          </TouchableOpacity>
-
-          {/* Center Scan Raised Button */}
-          <View style={styles.centerScanWrapper}>
+      {!isKeyboardOpen && (
+        <View style={styles.tabBarContainer}>
+          <View style={styles.tabBar}>
+            {/* Home Tab */}
             <TouchableOpacity
-              style={styles.centerScanButton}
-              onPress={() => setIsScannerOpen(true)}
-              activeOpacity={0.85}
+              style={styles.tabItem}
+              onPress={() => setActiveTab('home')}
+              activeOpacity={0.7}
             >
-              <Camera size={26} color="#FFFFFF" strokeWidth={2.2} />
+              <Home size={22} color={activeTab === 'home' ? '#FF5B00' : '#8C7B73'} strokeWidth={2.2} />
+              <Text style={[styles.tabLabel, activeTab === 'home' && styles.tabLabelActive]}>
+                Home
+              </Text>
             </TouchableOpacity>
-            <Text style={[styles.tabLabel, { color: '#FF5B00', marginTop: 4 }]}>
-              Scan
-            </Text>
+
+            {/* Diary Tab */}
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => setActiveTab('diary')}
+              activeOpacity={0.7}
+            >
+              <Calendar size={22} color={activeTab === 'diary' ? '#FF5B00' : '#8C7B73'} strokeWidth={2.2} />
+              <Text style={[styles.tabLabel, activeTab === 'diary' && styles.tabLabelActive]}>
+                Diary
+              </Text>
+            </TouchableOpacity>
+
+            {/* Center Scan Raised Button */}
+            <View style={styles.centerScanWrapper}>
+              <TouchableOpacity
+                style={styles.centerScanButton}
+                onPress={() => setIsScannerOpen(true)}
+                activeOpacity={0.85}
+              >
+                <Camera size={26} color="#FFFFFF" strokeWidth={2.2} />
+              </TouchableOpacity>
+              <Text style={[styles.tabLabel, { color: '#FF5B00', marginTop: 4 }]}>
+                Scan
+              </Text>
+            </View>
+
+            {/* AI Coach Tab */}
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => setActiveTab('coach')}
+              activeOpacity={0.7}
+            >
+              <Sparkles size={22} color={activeTab === 'coach' ? '#FF5B00' : '#8C7B73'} strokeWidth={2.2} />
+              <Text style={[styles.tabLabel, activeTab === 'coach' && styles.tabLabelActive]}>
+                AI Coach
+              </Text>
+            </TouchableOpacity>
+
+            {/* Profile Tab */}
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => setActiveTab('profile')}
+              activeOpacity={0.7}
+            >
+              <UserIcon size={22} color={activeTab === 'profile' ? '#FF5B00' : '#8C7B73'} strokeWidth={2.2} />
+              <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>
+                Profile
+              </Text>
+            </TouchableOpacity>
           </View>
-
-          {/* Insights Tab */}
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('insights')}
-            activeOpacity={0.7}
-          >
-            <Activity size={22} color={activeTab === 'insights' ? '#FF5B00' : '#8C7B73'} />
-            <Text style={[styles.tabLabel, activeTab === 'insights' && styles.tabLabelActive]}>
-              Insights
-            </Text>
-          </TouchableOpacity>
-
-          {/* Profile Tab */}
-          <TouchableOpacity
-            style={styles.tabItem}
-            onPress={() => setActiveTab('profile')}
-            activeOpacity={0.7}
-          >
-            <UserIcon size={22} color={activeTab === 'profile' ? '#FF5B00' : '#8C7B73'} />
-            <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>
-              Profile
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -589,6 +635,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  topBarRightCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   brandRow: {
     flexDirection: 'row',
@@ -1008,70 +1059,87 @@ const styles = StyleSheet.create({
     borderColor: '#EFE7DF',
     gap: 12,
     shadowColor: '#2A1810',
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 2,
   },
   mealCardThumb: {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: '#FAF6F0',
   },
   mealCardThumbPlaceholder: {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
+    width: 60,
+    height: 60,
+    borderRadius: 16,
     backgroundColor: '#FFF0E6',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FFDBC2',
+    borderColor: '#FFE0CC',
   },
   mealCardInfo: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  mealCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
   },
   mealCardTitle: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#2A1810',
+  },
+  mealCardCalorieWrap: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  mealCardCalorieNumber: {
+    fontSize: 15,
     fontWeight: '800',
     color: '#2A1810',
-    marginBottom: 2,
+  },
+  mealCardCalorieUnit: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#8C7B73',
+  },
+  mealCardTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+    marginBottom: 6,
   },
   mealCardTime: {
-    fontSize: 11.5,
+    fontSize: 11,
+    fontWeight: '500',
     color: '#8C7B73',
-    marginBottom: 6,
+  },
+  mealCardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   mealCardMacroTags: {
     flexDirection: 'row',
     gap: 6,
   },
   macroTag: {
-    backgroundColor: '#FAF6F0',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#EFE7DF',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 7,
   },
   macroTagText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '700',
-  },
-  mealCardCalorieCol: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingRight: 4,
-  },
-  mealCardCalorieNumber: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#8B4513',
-  },
-  mealCardCalorieUnit: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#8C7B73',
   },
 
   // 7. 5-Tab Floating Bottom Navigation Bar
