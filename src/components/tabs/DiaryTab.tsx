@@ -8,10 +8,13 @@ import {
   Image,
   Alert,
   Dimensions,
+  Animated,
+  Easing,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useNutrition } from '../../context/NutritionContext';
 import { getLocalMealsByDate } from '../../services/localDatabase';
+import { loadMealsByDate } from '../../services/nutritionService';
 import { DbMealLog } from '../../types/database';
 import { MealDetailsModal } from '../modals/MealDetailsModal';
 import {
@@ -28,12 +31,60 @@ interface DiaryTabProps {
 
 const { width } = Dimensions.get('window');
 
+const DiarySkeletonLoader: React.FC = () => {
+  const pulseAnim = useRef(new Animated.Value(0.35)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 0.85,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0.35,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+
+  return (
+    <View style={styles.skeletonWrapper}>
+      {[0, 1, 2].map((idx) => (
+        <Animated.View key={idx} style={[styles.skeletonMealCard, { opacity: pulseAnim }]}>
+          <View style={styles.skeletonThumb} />
+          <View style={styles.skeletonContent}>
+            <View style={styles.skeletonTitleRow}>
+              <View style={styles.skeletonLineLong} />
+              <View style={styles.skeletonCalorieBadge} />
+            </View>
+            <View style={styles.skeletonLineShort} />
+            <View style={styles.skeletonPillRow}>
+              <View style={styles.skeletonPill} />
+              <View style={styles.skeletonPill} />
+              <View style={styles.skeletonPill} />
+            </View>
+          </View>
+        </Animated.View>
+      ))}
+    </View>
+  );
+};
+
 export const DiaryTab: React.FC<DiaryTabProps> = ({ onOpenScanner }) => {
   const { user, profile } = useAuth();
   const { loggedMeals: todayContextMeals, deleteMeal } = useNutrition();
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [dateMeals, setDateMeals] = useState<DbMealLog[]>([]);
+  const [isDateLoading, setIsDateLoading] = useState(false);
   const [selectedMealForDetails, setSelectedMealForDetails] = useState<DbMealLog | null>(null);
   const dateScrollRef = useRef<ScrollView>(null);
 
@@ -79,11 +130,35 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({ onOpenScanner }) => {
     }
   }, [dateStrip]);
 
-  // Load meals whenever selectedDate changes
+  // Load meals whenever selectedDate changes (Instant SQLite + Background Supabase Sync)
   useEffect(() => {
+    let isMounted = true;
     if (!user?.id) return;
-    const meals = getLocalMealsByDate(user.id, selectedDate);
-    setDateMeals(meals);
+
+    // 1. Instant SQLite read
+    const local = getLocalMealsByDate(user.id, selectedDate);
+    setDateMeals(local);
+
+    // 2. Background cloud sync
+    setIsDateLoading(true);
+    loadMealsByDate(user.id, selectedDate)
+      .then((meals) => {
+        if (isMounted) {
+          setDateMeals(meals);
+        }
+      })
+      .catch((err) => {
+        console.warn('[DiaryTab] Error loading meals for date:', err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsDateLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [selectedDate, user?.id, todayContextMeals]);
 
   // Compute daily totals for the selected date
@@ -301,7 +376,9 @@ export const DiaryTab: React.FC<DiaryTabProps> = ({ onOpenScanner }) => {
         </Text>
       </View>
 
-      {dateMeals.length === 0 ? (
+      {isDateLoading && dateMeals.length === 0 ? (
+        <DiarySkeletonLoader />
+      ) : dateMeals.length === 0 ? (
         <View style={styles.emptyCard}>
           <View style={styles.emptyIconContainer}>
             <UtensilsCrossed size={32} color="#8C7B73" />
@@ -801,5 +878,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FF5B00',
+  },
+  skeletonWrapper: {
+    gap: 10,
+  },
+  skeletonMealCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 10,
+    borderWidth: 1.5,
+    borderColor: '#EFE7DF',
+    alignItems: 'center',
+    gap: 12,
+  },
+  skeletonThumb: {
+    width: 68,
+    height: 68,
+    borderRadius: 14,
+    backgroundColor: '#FAF6F0',
+  },
+  skeletonContent: {
+    flex: 1,
+    gap: 6,
+  },
+  skeletonTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  skeletonLineLong: {
+    width: '60%',
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#FAF6F0',
+  },
+  skeletonCalorieBadge: {
+    width: 45,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#FAF6F0',
+  },
+  skeletonLineShort: {
+    width: '35%',
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FAF6F0',
+  },
+  skeletonPillRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 2,
+  },
+  skeletonPill: {
+    width: 40,
+    height: 16,
+    borderRadius: 6,
+    backgroundColor: '#FAF6F0',
   },
 });

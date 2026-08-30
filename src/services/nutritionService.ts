@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { DbMealLog, Profile } from '../types/database';
 import {
   getLocalTodayMeals,
+  getLocalMealsByDate,
   getAllLocalMeals,
   saveLocalMeal,
   deleteLocalMeal as deleteLocalMealDb,
@@ -10,18 +11,27 @@ import {
   purgeDeletedMeal,
   syncCloudMealsToLocal,
   getTodayDateRange,
+  getDateRangeForDay,
+  calculateLocalStreak,
 } from './localDatabase';
 
 /**
  * Loads today's meal logs with offline-first local SQLite fallback + background cloud sync
  */
 export const loadTodayMealLogs = async (userId: string): Promise<DbMealLog[]> => {
+  return loadMealsByDate(userId, new Date());
+};
+
+/**
+ * Loads meals for any specific calendar date with instant SQLite cache + background Supabase sync
+ */
+export const loadMealsByDate = async (userId: string, date: Date): Promise<DbMealLog[]> => {
   // 1. Instant local read (0ms latency, 100% offline-ready)
-  const localMeals = getLocalTodayMeals(userId);
+  const localMeals = getLocalMealsByDate(userId, date);
 
   // 2. Try background sync with Supabase
   try {
-    const { startOfDay, endOfDay } = getTodayDateRange();
+    const { startOfDay, endOfDay } = getDateRangeForDay(date);
 
     const { data, error } = await supabase
       .from('meal_logs')
@@ -55,15 +65,58 @@ export const loadTodayMealLogs = async (userId: string): Promise<DbMealLog[]> =>
       // Trigger background sync for any pending offline items
       syncPendingMealLogs(userId).catch(console.warn);
 
-      // Return refreshed local records (including any pending local items)
-      return getLocalTodayMeals(userId);
+      // Return refreshed local records
+      return getLocalMealsByDate(userId, date);
     }
   } catch (netErr) {
     // Offline or network error: return local SQLite data
-    console.log('[NutritionService] Offline / network error loading cloud meals, using local cache:', netErr);
+    console.log('[NutritionService] Offline / network error loading cloud meals for date, using local cache:', netErr);
   }
 
   return localMeals;
+};
+
+/**
+ * Syncs the past 30 days of meal logs from Supabase into local SQLite
+ * Ensures historical days (like yesterday) are fully available offline.
+ */
+export const syncRecentMealLogs = async (userId: string, days: number = 30): Promise<DbMealLog[]> => {
+  try {
+    const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from('meal_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('logged_at', sinceDate)
+      .order('logged_at', { ascending: false });
+
+    if (!error && Array.isArray(data)) {
+      const cloudMeals: DbMealLog[] = data.map((item: any) => ({
+        id: item.id,
+        user_id: item.user_id,
+        dish_name: item.dish_name,
+        calories: Number(item.calories || 0),
+        protein_g: Number(item.protein_g || 0),
+        carbs_g: Number(item.carbs_g || 0),
+        fat_g: Number(item.fat_g || 0),
+        micronutrients: item.micronutrients || {},
+        detected_items: item.detected_items || [],
+        image_uri: item.image_uri,
+        source: item.source || 'ai_scan',
+        logged_at: item.logged_at,
+        created_at: item.created_at,
+        sync_status: 'synced',
+      }));
+
+      syncCloudMealsToLocal(userId, cloudMeals);
+      return cloudMeals;
+    }
+  } catch (err) {
+    console.warn('[NutritionService] Error syncing 30-day meal history:', err);
+  }
+
+  return getAllLocalMeals(userId, 100);
 };
 
 /**

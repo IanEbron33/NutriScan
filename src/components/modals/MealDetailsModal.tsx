@@ -43,18 +43,32 @@ export const MealDetailsModal: React.FC<MealDetailsModalProps> = ({
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const formatDisplayDate = (isoString: string) => {
+  const formatDisplayDate = (isoString?: string) => {
+    if (!isoString) return 'Logged Meal';
     try {
       const d = new Date(isoString);
-      return d.toLocaleDateString('en-US', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      if (!isNaN(d.getTime())) {
+        const datePart = d.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+        });
+        const timePart = d.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        });
+        return `${datePart} • ${timePart}`;
+      }
+
+      // If it's already a time format (e.g. "8:59 AM")
+      if (isoString.includes('AM') || isoString.includes('PM') || isoString.includes(':')) {
+        return `Today • ${isoString}`;
+      }
+
+      return isoString;
     } catch {
-      return '';
+      return 'Logged Meal';
     }
   };
 

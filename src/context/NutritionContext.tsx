@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { loadTodayMealLogs, logFoodIntake, removeMealLog, syncPendingMealLogs } from '../services/nutritionService';
+import {
+  loadTodayMealLogs,
+  logFoodIntake,
+  removeMealLog,
+  syncPendingMealLogs,
+  syncRecentMealLogs,
+} from '../services/nutritionService';
+import { calculateLocalStreak } from '../services/localDatabase';
 import { DbMealLog, MicronutrientsData, DetectedFoodItem } from '../types/database';
 
 export interface MealLog {
@@ -30,24 +37,16 @@ interface NutritionContextType {
     calcium_mg: number;
   };
   loggedMeals: MealLog[];
+  streakDays: number;
   isLoading: boolean;
   addMealLog: (meal: Omit<MealLog, 'id' | 'logged_at'>) => Promise<void>;
   deleteMeal: (mealId: string) => Promise<void>;
   refreshDailyTotals: () => Promise<void>;
+  refreshStreak: () => void;
   resetDailyTotals: () => void;
 }
 
 const NutritionContext = createContext<NutritionContextType | undefined>(undefined);
-
-const formatDisplayTime = (isoString: string): string => {
-  try {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return isoString;
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return isoString;
-  }
-};
 
 export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -62,7 +61,15 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     calcium_mg: 0,
   });
   const [loggedMeals, setLoggedMeals] = useState<MealLog[]>([]);
+  const [streakDays, setStreakDays] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const refreshStreak = useCallback(() => {
+    if (user?.id) {
+      const streak = calculateLocalStreak(user.id);
+      setStreakDays(streak);
+    }
+  }, [user?.id]);
 
   // Recalculate totals from an array of DbMealLogs
   const computeTotals = useCallback((meals: DbMealLog[]) => {
@@ -96,6 +103,7 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       calcium_mg: Math.round(calc * 10) / 10,
     });
 
+    // Keep pure ISO string in logged_at to ensure valid parsing everywhere
     const displayList: MealLog[] = meals.map((m) => ({
       id: m.id,
       dish_name: m.dish_name,
@@ -105,7 +113,7 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       fat_g: m.fat_g,
       micronutrients: m.micronutrients,
       image_uri: m.image_uri || undefined,
-      logged_at: formatDisplayTime(m.logged_at),
+      logged_at: m.logged_at,
       source: m.source,
       sync_status: m.sync_status,
     }));
@@ -122,19 +130,31 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setTodayCarbs(0);
       setTodayFat(0);
       setTodayMicros({ vitamin_c_mg: 0, iron_mg: 0, calcium_mg: 0 });
+      setStreakDays(0);
       return;
     }
 
     setIsLoading(true);
     try {
+      // 1. Initial streak calculation from local SQLite
+      refreshStreak();
+
+      // 2. Fetch today's meals
       const meals = await loadTodayMealLogs(user.id);
       computeTotals(meals);
+
+      // 3. Background 30-day sync to ensure offline history & streak are hydrated
+      syncRecentMealLogs(user.id, 30)
+        .then(() => {
+          refreshStreak();
+        })
+        .catch(console.warn);
     } catch (err) {
       console.warn('[NutritionContext] Error refreshing today meals:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, computeTotals]);
+  }, [user?.id, computeTotals, refreshStreak]);
 
   useEffect(() => {
     refreshDailyTotals();
@@ -149,7 +169,7 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const optimisticMeal: MealLog = {
       ...newMeal,
       id: tempId,
-      logged_at: formatDisplayTime(nowIso),
+      logged_at: nowIso,
       sync_status: 'pending_insert',
     };
 
@@ -194,6 +214,9 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             : item
         )
       );
+
+      // Recalculate streak
+      refreshStreak();
     } catch (err) {
       console.warn('[NutritionContext] Error saving food intake:', err);
     }
@@ -222,6 +245,7 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     try {
       await removeMealLog(userId, mealId);
+      refreshStreak();
     } catch (err) {
       console.warn('[NutritionContext] Error deleting meal:', err);
     }
@@ -234,6 +258,7 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTodayFat(0);
     setTodayMicros({ vitamin_c_mg: 0, iron_mg: 0, calcium_mg: 0 });
     setLoggedMeals([]);
+    setStreakDays(0);
   };
 
   return (
@@ -245,10 +270,12 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         todayFat,
         todayMicros,
         loggedMeals,
+        streakDays,
         isLoading,
         addMealLog,
         deleteMeal,
         refreshDailyTotals,
+        refreshStreak,
         resetDailyTotals,
       }}
     >

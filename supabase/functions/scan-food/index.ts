@@ -29,7 +29,7 @@ serve(async (req: any) => {
 
   try {
     const body = await req.json();
-    const { images, imageBase64, imageMimeType = "image/jpeg" } = body;
+    const { images, imageBase64, imageMimeType = "image/jpeg", userNotes } = body;
 
     // Collect all valid image parts (supports 1 to 3 photos)
     let imageParts = [];
@@ -61,10 +61,15 @@ serve(async (req: any) => {
       );
     }
 
+    const cleanUserNotes = typeof userNotes === "string" && userNotes.trim().length > 0 ? userNotes.trim() : "";
+    const userNotesPromptSection = cleanUserNotes
+      ? `\nUSER-PROVIDED CONTEXT / SPECIAL NOTES:\n"${cleanUserNotes}"\n\nCRITICAL INSTRUCTION FOR USER NOTES:\nThe user has provided verified notes about this meal (e.g. exact protein amounts, hidden ingredients, cooking oil, or brand info). Treat these user statements as authoritative ground truth facts. Calibrate the macro calculations, portion estimations, and detected item breakdowns to align strictly with the user's note.\n`
+      : "";
+
     const prompt = `You are NutriScan AI, an expert clinical nutritionist and food vision model.
 Analyze the provided food image(s) (${imageParts.length} angle/perspective photo(s) of the meal).
 Carefully detect and examine ALL visible dishes, sides, multiple items on the plate or table, eggs, beverages/shakes, condiments, and portion sizes across all photos to calculate accurate, clinical nutrition.
-
+${userNotesPromptSection}
 Return a structured JSON object strictly matching this schema:
 {
   "dish_name": "Accurate, descriptive meal title listing all main components (e.g. Pancit Bihon with 3 Boiled Eggs & Chocolate Shake)",

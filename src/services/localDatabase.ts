@@ -260,25 +260,99 @@ export const purgeDeletedMeal = (mealId: string): void => {
 };
 
 /**
- * Replaces synced local cache with fresh records fetched from Supabase cloud
- * (Preserves any un-synced offline pending logs)
+ * Upserts fresh cloud records into local SQLite cache without wiping other days
  */
 export const syncCloudMealsToLocal = (userId: string, cloudMeals: DbMealLog[]): void => {
   try {
     const db = getDb();
     db.withTransactionSync(() => {
-      // Remove only already 'synced' records so we don't wipe pending offline writes
-      db.runSync(
-        `DELETE FROM local_meal_logs WHERE user_id = ? AND sync_status = 'synced';`,
-        [userId]
-      );
-
       for (const meal of cloudMeals) {
         saveLocalMeal({ ...meal, sync_status: 'synced' });
       }
     });
   } catch (error) {
     console.warn('[LocalDB] Error syncing cloud meals to local SQLite:', error);
+  }
+};
+
+/**
+ * Calculates the consecutive active calendar day streak for a user.
+ * 24-hour streak rule:
+ * - If user logged a meal today: streak starts at 1 and counts backwards consecutive days.
+ * - If user hasn't logged today yet, but logged yesterday (within 24h grace period): streak keeps yesterday's streak.
+ * - If neither today nor yesterday has a meal (missed 24h+): streak resets to 0.
+ */
+export const calculateLocalStreak = (userId: string): number => {
+  try {
+    const db = getDb();
+    const rows = db.getAllSync<{ logged_at: string }>(
+      `SELECT logged_at FROM local_meal_logs 
+       WHERE user_id = ? AND sync_status != 'pending_delete'
+       ORDER BY logged_at DESC;`,
+      [userId]
+    );
+
+    if (!rows || rows.length === 0) return 0;
+
+    // Extract unique YYYY-MM-DD local dates
+    const uniqueDates = new Set<string>();
+    for (const r of rows) {
+      try {
+        const d = new Date(r.logged_at);
+        if (!isNaN(d.getTime())) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          uniqueDates.add(`${yyyy}-${mm}-${dd}`);
+        }
+      } catch {
+        // ignore invalid
+      }
+    }
+
+    if (uniqueDates.size === 0) return 0;
+
+    const now = new Date();
+    const formatDate = (date: Date) => {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const todayStr = formatDate(now);
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const yesterdayStr = formatDate(yesterday);
+
+    let streak = 0;
+    let checkDate = new Date(now);
+
+    if (uniqueDates.has(todayStr)) {
+      // User has logged today
+      streak = 1;
+      checkDate.setDate(checkDate.getDate() - 1);
+      while (uniqueDates.has(formatDate(checkDate))) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+    } else if (uniqueDates.has(yesterdayStr)) {
+      // Grace period: User logged yesterday, streak stays alive for today
+      streak = 1;
+      checkDate.setDate(checkDate.getDate() - 2);
+      while (uniqueDates.has(formatDate(checkDate))) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+    } else {
+      // Missed more than 24 hours (neither today nor yesterday) -> streak reset
+      streak = 0;
+    }
+
+    return streak;
+  } catch (error) {
+    console.warn('[LocalDB] Error calculating streak:', error);
+    return 0;
   }
 };
 

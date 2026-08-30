@@ -105,7 +105,8 @@ export const compressImageTo1080p = async (
  * or Direct Gemini Vision API as client failover.
  */
 export const analyzeFoodImages = async (
-  images: ImageInput[]
+  images: ImageInput[],
+  userNotes?: string
 ): Promise<FoodAnalysisResult> => {
   const startTime = Date.now();
 
@@ -137,6 +138,8 @@ export const analyzeFoodImages = async (
 
   let edgeErrorMessage = '';
 
+  const cleanUserNotes = userNotes && userNotes.trim().length > 0 ? userNotes.trim() : '';
+
   // 2. Primary Engine: Supabase Edge Function (Secure Secret via Deno.env.get("GEMINI_API_KEY"))
   try {
     const { data: edgeData, error: edgeError } = await supabase.functions.invoke('scan-food', {
@@ -147,6 +150,7 @@ export const analyzeFoodImages = async (
         })),
         imageBase64: imageParts[0]?.inline_data?.data,
         imageMimeType: 'image/jpeg',
+        userNotes: cleanUserNotes || undefined,
       },
     });
 
@@ -171,10 +175,14 @@ export const analyzeFoodImages = async (
   // 3. Fallback: Direct Gemini Vision API if client key is available
   if (GEMINI_API_KEY && GEMINI_API_KEY.trim().length > 0 && imageParts.length > 0) {
     try {
+      const userNotesPromptSection = cleanUserNotes
+        ? `\nUSER-PROVIDED CONTEXT / SPECIAL NOTES:\n"${cleanUserNotes}"\n\nCRITICAL INSTRUCTION FOR USER NOTES:\nThe user has provided verified notes about this meal (e.g. exact protein amounts, hidden ingredients, cooking oil, or brand info). Treat these user statements as authoritative ground truth facts. Calibrate the macro calculations, portion estimations, and detected item breakdowns to align strictly with the user's note.\n`
+        : '';
+
       const prompt = `You are NutriScan AI, an expert clinical nutritionist and food vision model.
 Analyze the provided food image(s) (${imageParts.length} angle/perspective photo(s) of the meal).
 Carefully detect and examine ALL visible dishes, sides, multiple items on the plate or table, eggs, beverages/shakes, condiments, and portion sizes across all photos to calculate accurate, clinical nutrition.
-
+${userNotesPromptSection}
 Return a structured JSON object strictly matching this schema:
 {
   "dish_name": "Accurate, descriptive meal title listing all main components (e.g. Pancit Bihon with 3 Boiled Eggs & Chocolate Shake)",
@@ -263,7 +271,10 @@ Return ONLY valid JSON with no markdown backticks or explanation.`;
 /**
  * Single image backward compatibility wrapper
  */
-export const analyzeFoodImage = async (image: ImageInput): Promise<FoodAnalysisResult> => {
-  return analyzeFoodImages([image]);
+export const analyzeFoodImage = async (
+  image: ImageInput,
+  userNotes?: string
+): Promise<FoodAnalysisResult> => {
+  return analyzeFoodImages([image], userNotes);
 };
 

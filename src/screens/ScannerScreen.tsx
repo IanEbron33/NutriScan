@@ -22,6 +22,7 @@ import {
 } from '../services/aiFoodScanner';
 import { useNutrition } from '../context/NutritionContext';
 import { NutritionResultModal } from '../components/scanner/NutritionResultModal';
+import { MealContextNoteModal } from '../components/scanner/MealContextNoteModal';
 import {
   Camera,
   ImageIcon,
@@ -36,6 +37,7 @@ import {
   ShieldCheck,
   ScanLine,
   Flame,
+  FileText,
 } from '../components/ui/LucideIcons';
 
 const { width, height } = Dimensions.get('window');
@@ -63,6 +65,10 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   const [scanStepIndex, setScanStepIndex] = useState(0);
   const [analysisResult, setAnalysisResult] = useState<FoodAnalysisResult | null>(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
+
+  // Optional Context Note State
+  const [userNotes, setUserNotes] = useState('');
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
 
   // Manual Form State
   const [manualTitle, setManualTitle] = useState('');
@@ -282,7 +288,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
 
     try {
       setIsScanning(true);
-      const foodData = await analyzeFoodImages(capturedImages);
+      const foodData = await analyzeFoodImages(capturedImages, userNotes);
       setAnalysisResult(foodData);
       setIsResultModalOpen(true);
     } catch (err: any) {
@@ -474,19 +480,40 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
           <SafeAreaView edges={['bottom']} style={styles.bottomControlsSafe}>
             {/* FLOATING 3-SLOT RECENT CAPTURES DOCK */}
             <View style={styles.capturesDockWrapper}>
-              {/* Analyze Button (Active as soon as 1+ photo is docked) */}
+              {/* Split Action Bar: Analyze Button + Compact Note Button (Option A) */}
               {validImagesCount > 0 && (
-                <TouchableOpacity
-                  style={styles.floatingAnalyzeButton}
-                  onPress={handleAnalyzeMultiImages}
-                  disabled={isScanning}
-                  activeOpacity={0.85}
-                >
-                  <Sparkles size={16} color="#FFFFFF" />
-                  <Text style={styles.floatingAnalyzeText}>
-                    Analyze Meal ({validImagesCount}/3)
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.analyzeActionBarRow}>
+                  <TouchableOpacity
+                    style={styles.floatingAnalyzeButton}
+                    onPress={handleAnalyzeMultiImages}
+                    disabled={isScanning}
+                    activeOpacity={0.85}
+                  >
+                    <Sparkles size={16} color="#FFFFFF" strokeWidth={2.2} />
+                    <Text style={styles.floatingAnalyzeText}>
+                      Analyze Meal ({validImagesCount}/3)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.noteTriggerButton,
+                      userNotes.trim().length > 0 && styles.noteTriggerButtonActive,
+                    ]}
+                    onPress={() => setIsNoteModalOpen(true)}
+                    activeOpacity={0.8}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  >
+                    <FileText
+                      size={18}
+                      color={userNotes.trim().length > 0 ? '#FFFFFF' : '#FFDBC2'}
+                      strokeWidth={2.2}
+                    />
+                    {userNotes.trim().length > 0 && (
+                      <View style={styles.noteActiveIndicatorDot} />
+                    )}
+                  </TouchableOpacity>
+                </View>
               )}
 
               {/* 3-Thumbnail Tray */}
@@ -772,6 +799,14 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         onAddToDailyTracker={handleConfirmAddToDaily}
         onDismiss={handleDismissResult}
       />
+
+      {/* Meal Context Note Modal (Option A) */}
+      <MealContextNoteModal
+        visible={isNoteModalOpen}
+        initialNote={userNotes}
+        onSave={(note) => setUserNotes(note)}
+        onClose={() => setIsNoteModalOpen(false)}
+      />
     </View>
   );
 };
@@ -934,6 +969,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 18,
   },
+  analyzeActionBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
   floatingAnalyzeButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -942,7 +984,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     gap: 6,
-    marginBottom: 12,
     shadowColor: '#FF5B00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
@@ -953,6 +994,37 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13.5,
     fontWeight: '800',
+  },
+  noteTriggerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  noteTriggerButtonActive: {
+    backgroundColor: '#FF5B00',
+    borderColor: '#FFA066',
+    shadowColor: '#FF5B00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  noteActiveIndicatorDot: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#FF5B00',
   },
   thumbnailsTray: {
     flexDirection: 'row',

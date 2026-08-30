@@ -47,9 +47,31 @@ const { width } = Dimensions.get('window');
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
+const formatMealTime = (isoString?: string): string => {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return isoString;
+  } catch {
+    return '';
+  }
+};
+
 export const DashboardScreen: React.FC = () => {
   const { user, profile, signOut } = useAuth();
-  const { todayCalories, todayProtein, todayCarbs, todayFat, todayMicros, loggedMeals, deleteMeal } = useNutrition();
+  const {
+    todayCalories,
+    todayProtein,
+    todayCarbs,
+    todayFat,
+    todayMicros,
+    loggedMeals,
+    deleteMeal,
+    streakDays: dynamicStreakDays,
+  } = useNutrition();
 
   const [activeTab, setActiveTab] = useState<'home' | 'diary' | 'coach' | 'profile'>('home');
   const [showSignOutModal, setShowSignOutModal] = useState(false);
@@ -81,7 +103,7 @@ export const DashboardScreen: React.FC = () => {
   const proteinTarget = profile?.daily_protein_target || 120;
   const carbsTarget = profile?.daily_carbs_target || 250;
   const fatTarget = profile?.daily_fat_target || 70;
-  const streakDays = profile?.streak_days || 12;
+  const streakDays = dynamicStreakDays > 0 ? dynamicStreakDays : (profile?.streak_days || 1);
 
   // Live dynamic consumed metrics from NutritionContext
   const caloriesConsumed = todayCalories;
@@ -450,7 +472,7 @@ export const DashboardScreen: React.FC = () => {
                         {/* Row 2: Time */}
                         <View style={styles.mealCardTimeRow}>
                           <Clock size={11} color="#8C7B73" />
-                          <Text style={styles.mealCardTime}>{meal.logged_at}</Text>
+                          <Text style={styles.mealCardTime}>{formatMealTime(meal.logged_at)}</Text>
                         </View>
 
                         {/* Row 3: Macro Tags (Left) + Chevron (Right) */}
