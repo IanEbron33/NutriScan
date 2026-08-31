@@ -5,12 +5,11 @@ import {
   View,
   TouchableOpacity,
   TextInput,
-  Modal,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Dimensions,
 } from 'react-native';
+import { DraggableBottomSheet } from '../ui/DraggableBottomSheet';
 import {
   FileText,
   X,
@@ -77,44 +76,32 @@ export const MealContextNoteModal: React.FC<MealContextNoteModalProps> = ({
     onSave('');
   };
 
-  if (!visible) return null;
-
   return (
-    <Modal
+    <DraggableBottomSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      maxHeight="86%"
+      backgroundColor="#FFFFFF"
+      keyboardAvoid
+      showHandle={true}
     >
-      <KeyboardAvoidingView
-        style={styles.modalOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      {/* Top Header Action Row */}
+      <View style={styles.sheetHeaderActionRow}>
         <TouchableOpacity
-          style={styles.backdropTouchable}
-          activeOpacity={1}
+          style={styles.closeCircleBtn}
           onPress={onClose}
-        />
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.75}
+        >
+          <X size={18} color="#FF5B00" strokeWidth={2.5} />
+        </TouchableOpacity>
+      </View>
 
-        <View style={styles.sheetContainer}>
-          {/* Top Handle & Header */}
-          <View style={styles.sheetTopBar}>
-            <View style={styles.handleBar} />
-            <TouchableOpacity
-              style={styles.closeCircleBtn}
-              onPress={onClose}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              activeOpacity={0.75}
-            >
-              <X size={18} color="#FF5B00" strokeWidth={2.5} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
             {/* Title Header */}
             <View style={styles.headerTitleRow}>
               <View style={styles.iconContainer}>
@@ -216,61 +203,28 @@ export const MealContextNoteModal: React.FC<MealContextNoteModalProps> = ({
               )}
             </View>
           </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </DraggableBottomSheet>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(42, 24, 16, 0.55)',
-    justifyContent: 'flex-end',
-  },
-  backdropTouchable: {
-    flex: 1,
-  },
-  sheetContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-    borderTopWidth: 1.5,
-    borderLeftWidth: 1.5,
-    borderRightWidth: 1.5,
-    borderColor: '#EFE7DF',
-    shadowColor: '#2A1810',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 10,
-    maxHeight: '85%',
-  },
-  sheetTopBar: {
+  sheetHeaderActionRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    paddingVertical: 6,
-    paddingHorizontal: 20,
-  },
-  handleBar: {
-    width: 44,
-    height: 4.5,
-    borderRadius: 3,
-    backgroundColor: '#E5DBD3',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 18,
+    paddingTop: 2,
+    paddingBottom: 6,
   },
   closeCircleBtn: {
-    position: 'absolute',
-    right: 18,
-    top: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#FFF0E6',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFE0CC',
   },
   scrollContent: {
     paddingHorizontal: 20,

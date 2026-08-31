@@ -6,12 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Modal,
   Dimensions,
 } from 'react-native';
 import { DbMealLog, DetectedFoodItem } from '../../types/database';
 import { MealLog } from '../../context/NutritionContext';
 import { CustomConfirmModal } from './CustomConfirmModal';
+import { DraggableBottomSheet } from '../ui/DraggableBottomSheet';
 import {
   X,
   Flame,
@@ -91,31 +91,28 @@ export const MealDetailsModal: React.FC<MealDetailsModalProps> = ({
   };
 
   return (
-    <Modal
+    <DraggableBottomSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onClose={onClose}
+      maxHeight="88%"
+      showHandle={true}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalSheet}>
-          {/* Top Sheet Header with Drag Handle & High-Visibility 'X' Button */}
-          <View style={styles.sheetTopBar}>
-            <View style={styles.handleBar} />
-            <TouchableOpacity
-              style={styles.closeCircleBtn}
-              onPress={onClose}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              activeOpacity={0.8}
-            >
-              <X size={18} color="#FF5B00" strokeWidth={2.5} />
-            </TouchableOpacity>
-          </View>
+      {/* Top Header with High-Visibility 'X' Button */}
+      <View style={styles.sheetHeaderActionRow}>
+        <TouchableOpacity
+          style={styles.closeCircleBtn}
+          onPress={onClose}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          activeOpacity={0.8}
+        >
+          <X size={18} color="#FF5B00" strokeWidth={2.5} />
+        </TouchableOpacity>
+      </View>
 
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-          >
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
             {/* 1. Dish Photo Banner with Warm Border */}
             {meal.image_uri ? (
               <View style={styles.imageBannerWrapper}>
@@ -273,8 +270,6 @@ export const MealDetailsModal: React.FC<MealDetailsModalProps> = ({
               </TouchableOpacity>
             )}
           </ScrollView>
-        </View>
-      </View>
 
       {/* Custom Warm Confirmation Dialog */}
       <CustomConfirmModal
@@ -288,52 +283,23 @@ export const MealDetailsModal: React.FC<MealDetailsModalProps> = ({
         onConfirm={handleConfirmDelete}
         onCancel={() => setShowDeleteConfirm(false)}
       />
-    </Modal>
+    </DraggableBottomSheet>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(42, 24, 16, 0.55)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    maxHeight: height * 0.88,
-    backgroundColor: '#FAF6F0',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 12,
-    paddingBottom: 30,
-    borderWidth: 1.5,
-    borderColor: '#EFE7DF',
-    shadowColor: '#2A1810',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  sheetTopBar: {
+  sheetHeaderActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    position: 'relative',
-  },
-  handleBar: {
-    width: 44,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#D1C7BD',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 18,
+    paddingTop: 2,
+    paddingBottom: 6,
   },
   closeCircleBtn: {
-    position: 'absolute',
-    right: 18,
-    top: -2,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#FFF0E6',
     alignItems: 'center',
     justifyContent: 'center',

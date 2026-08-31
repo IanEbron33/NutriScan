@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  Modal,
   TouchableOpacity,
   TouchableWithoutFeedback,
   FlatList,
@@ -11,6 +10,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { DraggableBottomSheet } from './DraggableBottomSheet';
 import { X, Check } from './LucideIcons';
 
 interface ScrollWheelPickerModalProps {
@@ -107,37 +107,28 @@ export const ScrollWheelPickerModal: React.FC<ScrollWheelPickerModalProps> = ({
   };
 
   return (
-    <Modal
+    <DraggableBottomSheet
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+      onClose={onClose}
+      maxHeight={480}
+      backgroundColor="#FFFFFF"
+      showHandle={true}
     >
-      <View style={styles.overlay}>
-        {/* Backdrop touch to dismiss */}
-        <TouchableWithoutFeedback onPress={onClose}>
-          <View style={styles.backdrop} />
-        </TouchableWithoutFeedback>
-
-        {/* Bottom Sheet Card */}
-        <View style={styles.sheetContainer}>
-          {/* Top Drag Pill */}
-          <View style={styles.dragHandle} />
-
-          {/* Header Row */}
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.title}>{title}</Text>
-              <Text style={styles.subtitle}>{unit}</Text>
-            </View>
-            <TouchableOpacity
-              onPress={onClose}
-              style={styles.closeButton}
-              activeOpacity={0.7}
-            >
-              <X size={18} color="#2A1810" />
-            </TouchableOpacity>
+      <View style={styles.contentWrapper}>
+        {/* Header Row */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.subtitle}>{unit}</Text>
           </View>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.closeButton}
+            activeOpacity={0.7}
+          >
+            <X size={18} color="#2A1810" />
+          </TouchableOpacity>
+        </View>
 
           {/* Wheel Picker Container */}
           <View style={styles.pickerContainer}>
@@ -198,42 +189,15 @@ export const ScrollWheelPickerModal: React.FC<ScrollWheelPickerModalProps> = ({
             <Text style={styles.confirmButtonText}>Confirm Age ({tempValue})</Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </Modal>
+    </DraggableBottomSheet>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(42, 24, 16, 0.45)',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  sheetContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+  contentWrapper: {
     paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 32,
-    borderWidth: 1.5,
-    borderColor: '#EFE7DF',
-    shadowColor: '#2A1810',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  dragHandle: {
-    width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E0D5CC',
-    alignSelf: 'center',
-    marginBottom: 14,
+    paddingTop: 4,
+    paddingBottom: 16,
   },
   headerRow: {
     flexDirection: 'row',

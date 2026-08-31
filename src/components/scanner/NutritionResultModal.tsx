@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  Modal,
   TouchableOpacity,
   Image,
   ScrollView,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { FoodAnalysisResult } from '../../services/aiFoodScanner';
+import { DraggableBottomSheet } from '../ui/DraggableBottomSheet';
 import {
   Plus,
   Eye,
@@ -93,24 +93,20 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
   const fOffset = -(pLen + cLen);
 
   return (
-    <Modal
+    <DraggableBottomSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onDismiss}
+      onClose={onDismiss}
+      maxHeight="92%"
+      showHandle={true}
     >
-      <View style={styles.overlay}>
-        <View style={styles.sheetContainer}>
-          {/* Clean Modal Drag Bar & Close Action */}
-          <View style={styles.headerRow}>
-            <View style={styles.dragBarPlaceholder} />
-            <View style={styles.dragHandle} />
-            <TouchableOpacity onPress={onDismiss} style={styles.closeButton} activeOpacity={0.7}>
-              <X size={18} color="#8C7B73" />
-            </TouchableOpacity>
-          </View>
+      {/* Clean Header Action Row */}
+      <View style={styles.sheetHeaderActionRow}>
+        <TouchableOpacity onPress={onDismiss} style={styles.closeButton} activeOpacity={0.7}>
+          <X size={18} color="#8C7B73" />
+        </TouchableOpacity>
+      </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             {/* Dish Image(s) & Name */}
             {result.image_uris && result.image_uris.length > 1 ? (
               <ScrollView
@@ -482,41 +478,18 @@ export const NutritionResultModal: React.FC<NutritionResultModalProps> = ({
               <Text style={styles.secondaryButtonText}>Just Checking (Dismiss)</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
-    </Modal>
+    </DraggableBottomSheet>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(42, 24, 16, 0.65)',
-    justifyContent: 'flex-end',
-  },
-  sheetContainer: {
-    backgroundColor: '#FAF6F0',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 28,
-    maxHeight: '92%',
-  },
-  headerRow: {
+  sheetHeaderActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  dragBarPlaceholder: {
-    width: 32,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#E4DDD4',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 18,
+    paddingTop: 2,
+    paddingBottom: 6,
   },
   closeButton: {
     padding: 6,

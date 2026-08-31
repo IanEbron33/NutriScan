@@ -6,11 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Modal,
   FlatList,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { DraggableBottomSheet } from '../ui/DraggableBottomSheet';
 import {
   ArrowLeft,
   Clock,
@@ -279,153 +279,152 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
       </ScrollView>
 
       {/* Snap-to-Center Scroll Wheel Time Picker Modal */}
-      <Modal
+      <DraggableBottomSheet
         visible={editingMealType !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditingMealType(null)}
+        onClose={() => setEditingMealType(null)}
+        maxHeight={480}
+        backgroundColor="#FFFFFF"
+        showHandle={true}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Set {editingMealType === 'breakfast' ? 'Breakfast' : editingMealType === 'lunch' ? 'Lunch' : 'Dinner'} Time
-              </Text>
-              <TouchableOpacity
-                style={styles.modalCloseBtn}
-                onPress={() => setEditingMealType(null)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={15} color="#FF5B00" strokeWidth={2.5} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Column Labels */}
-            <View style={styles.columnLabelsRow}>
-              <Text style={styles.columnLabel}>HOUR</Text>
-              <View style={{ width: 14 }} />
-              <Text style={styles.columnLabel}>MIN</Text>
-              <View style={{ width: 14 }} />
-              <Text style={styles.columnLabel}>PERIOD</Text>
-            </View>
-
-            {/* Snap-to-Center Wheel Stage with Background Box */}
-            <View style={styles.wheelStage}>
-              {/* Central Active Selection Highlight Bar across columns */}
-              <View style={styles.centerHighlightBar} pointerEvents="none" />
-
-              {/* 1. Hour Snap Wheel */}
-              <View style={styles.wheelColumn}>
-                <FlatList
-                  ref={hourListRef}
-                  data={HOURS}
-                  keyExtractor={(item) => item}
-                  snapToInterval={ITEM_HEIGHT}
-                  decelerationRate="fast"
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled
-                  onScroll={handleHourScroll}
-                  onMomentumScrollEnd={handleHourScroll}
-                  scrollEventThrottle={16}
-                  ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
-                  ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
-                  getItemLayout={(_, index) => ({
-                    length: ITEM_HEIGHT,
-                    offset: ITEM_HEIGHT * index,
-                    index,
-                  })}
-                  renderItem={({ item }) => {
-                    const isSelected = tempHour === item;
-                    return (
-                      <View style={styles.wheelItem}>
-                        <Text style={[styles.wheelText, isSelected && styles.wheelTextSelected]}>
-                          {item}
-                        </Text>
-                      </View>
-                    );
-                  }}
-                />
-              </View>
-
-              <Text style={styles.stageColon}>:</Text>
-
-              {/* 2. Minute Snap Wheel */}
-              <View style={styles.wheelColumn}>
-                <FlatList
-                  ref={minuteListRef}
-                  data={MINUTES}
-                  keyExtractor={(item) => item}
-                  snapToInterval={ITEM_HEIGHT}
-                  decelerationRate="fast"
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled
-                  onScroll={handleMinuteScroll}
-                  onMomentumScrollEnd={handleMinuteScroll}
-                  scrollEventThrottle={16}
-                  ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
-                  ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
-                  getItemLayout={(_, index) => ({
-                    length: ITEM_HEIGHT,
-                    offset: ITEM_HEIGHT * index,
-                    index,
-                  })}
-                  renderItem={({ item }) => {
-                    const isSelected = tempMinute === item;
-                    return (
-                      <View style={styles.wheelItem}>
-                        <Text style={[styles.wheelText, isSelected && styles.wheelTextSelected]}>
-                          {item}
-                        </Text>
-                      </View>
-                    );
-                  }}
-                />
-              </View>
-
-              <View style={{ width: 6 }} />
-
-              {/* 3. Period (AM/PM) Snap Wheel */}
-              <View style={styles.wheelColumn}>
-                <FlatList
-                  ref={periodListRef}
-                  data={PERIODS}
-                  keyExtractor={(item) => item}
-                  snapToInterval={ITEM_HEIGHT}
-                  decelerationRate="fast"
-                  showsVerticalScrollIndicator={false}
-                  nestedScrollEnabled
-                  onScroll={handlePeriodScroll}
-                  onMomentumScrollEnd={handlePeriodScroll}
-                  scrollEventThrottle={16}
-                  ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
-                  ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
-                  getItemLayout={(_, index) => ({
-                    length: ITEM_HEIGHT,
-                    offset: ITEM_HEIGHT * index,
-                    index,
-                  })}
-                  renderItem={({ item }) => {
-                    const isSelected = tempAmPm === item;
-                    return (
-                      <View style={styles.wheelItem}>
-                        <Text style={[styles.wheelText, isSelected && styles.wheelTextSelected]}>
-                          {item}
-                        </Text>
-                      </View>
-                    );
-                  }}
-                />
-              </View>
-            </View>
-
-            {/* Modal Confirm Button */}
-            <TouchableOpacity style={styles.modalSaveBtn} onPress={saveCustomTime} activeOpacity={0.85}>
-              <Check size={15} color="#FFFFFF" strokeWidth={2.5} />
-              <Text style={styles.modalSaveBtnText}>Set Time</Text>
+        <View style={styles.modalContentWrapper}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              Set {editingMealType === 'breakfast' ? 'Breakfast' : editingMealType === 'lunch' ? 'Lunch' : 'Dinner'} Time
+            </Text>
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setEditingMealType(null)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={15} color="#FF5B00" strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
+
+          {/* Column Labels */}
+          <View style={styles.columnLabelsRow}>
+            <Text style={styles.columnLabel}>HOUR</Text>
+            <View style={{ width: 14 }} />
+            <Text style={styles.columnLabel}>MIN</Text>
+            <View style={{ width: 14 }} />
+            <Text style={styles.columnLabel}>PERIOD</Text>
+          </View>
+
+          {/* Snap-to-Center Wheel Stage with Background Box */}
+          <View style={styles.wheelStage}>
+            {/* Central Active Selection Highlight Bar across columns */}
+            <View style={styles.centerHighlightBar} pointerEvents="none" />
+
+            {/* 1. Hour Snap Wheel */}
+            <View style={styles.wheelColumn}>
+              <FlatList
+                ref={hourListRef}
+                data={HOURS}
+                keyExtractor={(item) => item}
+                snapToInterval={ITEM_HEIGHT}
+                decelerationRate="fast"
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                onScroll={handleHourScroll}
+                onMomentumScrollEnd={handleHourScroll}
+                scrollEventThrottle={16}
+                ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
+                ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
+                getItemLayout={(_, index) => ({
+                  length: ITEM_HEIGHT,
+                  offset: ITEM_HEIGHT * index,
+                  index,
+                })}
+                renderItem={({ item }) => {
+                  const isSelected = tempHour === item;
+                  return (
+                    <View style={styles.wheelItem}>
+                      <Text style={[styles.wheelText, isSelected && styles.wheelTextSelected]}>
+                        {item}
+                      </Text>
+                    </View>
+                  );
+                }}
+              />
+            </View>
+
+            <Text style={styles.stageColon}>:</Text>
+
+            {/* 2. Minute Snap Wheel */}
+            <View style={styles.wheelColumn}>
+              <FlatList
+                ref={minuteListRef}
+                data={MINUTES}
+                keyExtractor={(item) => item}
+                snapToInterval={ITEM_HEIGHT}
+                decelerationRate="fast"
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                onScroll={handleMinuteScroll}
+                onMomentumScrollEnd={handleMinuteScroll}
+                scrollEventThrottle={16}
+                ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
+                ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
+                getItemLayout={(_, index) => ({
+                  length: ITEM_HEIGHT,
+                  offset: ITEM_HEIGHT * index,
+                  index,
+                })}
+                renderItem={({ item }) => {
+                  const isSelected = tempMinute === item;
+                  return (
+                    <View style={styles.wheelItem}>
+                      <Text style={[styles.wheelText, isSelected && styles.wheelTextSelected]}>
+                        {item}
+                      </Text>
+                    </View>
+                  );
+                }}
+              />
+            </View>
+
+            <View style={{ width: 6 }} />
+
+            {/* 3. Period (AM/PM) Snap Wheel */}
+            <View style={styles.wheelColumn}>
+              <FlatList
+                ref={periodListRef}
+                data={PERIODS}
+                keyExtractor={(item) => item}
+                snapToInterval={ITEM_HEIGHT}
+                decelerationRate="fast"
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
+                onScroll={handlePeriodScroll}
+                onMomentumScrollEnd={handlePeriodScroll}
+                scrollEventThrottle={16}
+                ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
+                ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
+                getItemLayout={(_, index) => ({
+                  length: ITEM_HEIGHT,
+                  offset: ITEM_HEIGHT * index,
+                  index,
+                })}
+                renderItem={({ item }) => {
+                  const isSelected = tempAmPm === item;
+                  return (
+                    <View style={styles.wheelItem}>
+                      <Text style={[styles.wheelText, isSelected && styles.wheelTextSelected]}>
+                        {item}
+                      </Text>
+                    </View>
+                  );
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Modal Confirm Button */}
+          <TouchableOpacity style={styles.modalSaveBtn} onPress={saveCustomTime} activeOpacity={0.85}>
+            <Check size={15} color="#FFFFFF" strokeWidth={2.5} />
+            <Text style={styles.modalSaveBtnText}>Set Time</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
+      </DraggableBottomSheet>
     </View>
   );
 };
@@ -581,25 +580,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5EFEA',
     marginVertical: 8,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(42, 24, 16, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  modalCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 1.2,
-    borderColor: '#EFE7DF',
-    shadowColor: '#2A1810',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 6,
+  modalContentWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 16,
   },
   modalHeader: {
     flexDirection: 'row',
