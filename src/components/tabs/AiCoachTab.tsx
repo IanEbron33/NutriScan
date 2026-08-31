@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,12 +8,16 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
-  Alert,
   Keyboard,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useNutrition } from '../../context/NutritionContext';
 import { askNutritionCoach, ChatMessage } from '../../services/aiCoachService';
+import {
+  getLocalCoachMessages,
+  saveLocalCoachMessage,
+  clearLocalCoachMessages,
+} from '../../services/localDatabase';
 import { CustomConfirmModal } from '../modals/CustomConfirmModal';
 import {
   Sparkles,
@@ -22,7 +26,94 @@ import {
   UtensilsCrossed,
   CheckCircle2,
   Lightbulb,
+  Trash2,
 } from '../ui/LucideIcons';
+
+/**
+ * Renders structured coach text with bold highlights (**text**), bullet points (•, *, -),
+ * numbered lists (1., 2.), and clean paragraph spacing without raw asterisks.
+ */
+const FormattedCoachText: React.FC<{ text: string; isAi: boolean }> = ({ text, isAi }) => {
+  const lines = text.split('\n');
+
+  const renderInlineFormatted = (rawLine: string, keyPrefix: string) => {
+    // Regex splits **bold text**
+    const parts = rawLine.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+        const boldContent = part.slice(2, -2);
+        return (
+          <Text
+            key={`${keyPrefix}_${idx}`}
+            style={[
+              styles.messageTextBold,
+              isAi ? styles.textAiBold : styles.textUserBold,
+            ]}
+          >
+            {boldContent}
+          </Text>
+        );
+      }
+      return (
+        <Text
+          key={`${keyPrefix}_${idx}`}
+          style={isAi ? styles.textAi : styles.textUser}
+        >
+          {part}
+        </Text>
+      );
+    });
+  };
+
+  return (
+    <View style={styles.formattedTextContainer}>
+      {lines.map((line, lineIdx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <View key={`empty_${lineIdx}`} style={{ height: 6 }} />;
+        }
+
+        // Bullet point check (e.g. "• item", "* item", "- item")
+        const bulletMatch = trimmed.match(/^([•\*\-])\s+(.*)$/);
+        if (bulletMatch) {
+          const content = bulletMatch[2];
+          return (
+            <View key={`line_${lineIdx}`} style={styles.bulletRow}>
+              <View style={[styles.bulletDot, !isAi && { backgroundColor: '#FFFFFF' }]} />
+              <Text style={[styles.messageText, styles.bulletContent, isAi ? styles.textAi : styles.textUser]}>
+                {renderInlineFormatted(content, `b_${lineIdx}`)}
+              </Text>
+            </View>
+          );
+        }
+
+        // Numbered list check (e.g. "1. item", "2) item")
+        const numberMatch = trimmed.match(/^(\d+)[\.\)]\s+(.*)$/);
+        if (numberMatch) {
+          const num = numberMatch[1];
+          const content = numberMatch[2];
+          return (
+            <View key={`line_${lineIdx}`} style={styles.numberedRow}>
+              <Text style={[styles.numberedBadge, isAi ? styles.textAiBold : styles.textUserBold]}>
+                {num}.
+              </Text>
+              <Text style={[styles.messageText, styles.numberedContent, isAi ? styles.textAi : styles.textUser]}>
+                {renderInlineFormatted(content, `n_${lineIdx}`)}
+              </Text>
+            </View>
+          );
+        }
+
+        // Regular line
+        return (
+          <Text key={`line_${lineIdx}`} style={[styles.messageText, isAi ? styles.textAi : styles.textUser]}>
+            {renderInlineFormatted(trimmed, `p_${lineIdx}`)}
+          </Text>
+        );
+      })}
+    </View>
+  );
+};
 
 export const AiCoachTab: React.FC = () => {
   const { profile } = useAuth();
@@ -40,13 +131,43 @@ export const AiCoachTab: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loggedMealSuccess, setLoggedMealSuccess] = useState<string | null>(null);
   const [loggedSuggestions, setLoggedSuggestions] = useState<Record<string, boolean>>({});
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
+  const userId = profile?.id || 'guest_user';
   const calorieTarget = profile?.daily_calorie_target || 2400;
   const proteinTarget = profile?.daily_protein_target || 120;
   const remainingCals = Math.max(0, calorieTarget - todayCalories);
   const remainingProt = Math.max(0, proteinTarget - todayProtein);
 
+  // Dynamic welcome message with clean bullet highlights
+  const defaultWelcomeMessage = useMemo<ChatMessage>(() => {
+    const firstName = profile?.full_name?.split(' ')[0] || 'there';
+    return {
+      id: 'welcome_1',
+      sender: 'ai',
+      text: `Hello **${firstName}**! I am your personal NutriScan AI Coach.\n\n• **Calories left today:** ${remainingCals} kcal\n• **Protein left today:** ${remainingProt}g\n\nHow can I help with your nutrition today?`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+  }, [profile?.full_name, remainingCals, remainingProt]);
+
+  const [messages, setMessages] = useState<ChatMessage[]>([defaultWelcomeMessage]);
+
+  // Load chat history from SQLite on mount / user change
+  useEffect(() => {
+    try {
+      const saved = getLocalCoachMessages(userId);
+      if (saved && saved.length > 0) {
+        setMessages(saved);
+      } else {
+        setMessages([defaultWelcomeMessage]);
+      }
+    } catch (err) {
+      console.warn('[AiCoachTab] Error loading coach history:', err);
+    }
+  }, [userId, defaultWelcomeMessage]);
+
+  // Keyboard adjustment listener
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -69,21 +190,11 @@ export const AiCoachTab: React.FC = () => {
     };
   }, []);
 
-  // Initial welcome message
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome_1',
-      sender: 'ai',
-      text: `Hello ${profile?.full_name?.split(' ')[0] || 'there'}! I am your personal NutriScan AI Coach.\n\nToday: ${todayCalories}/${calorieTarget} kcal (${remainingCals} kcal left, ${remainingProt}g protein left). How can I help with your nutrition?`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
-
   const quickPrompts = [
     'What should I eat for dinner?',
-    'High-protein snack recipe (<200 kcal)',
+    'High-protein snack (<200 kcal)',
     'Review my macro balance today',
-    'Best post-workout recovery dish',
+    'Best post-workout recovery meal',
   ];
 
   const handleSend = async (textToSend?: string) => {
@@ -97,7 +208,9 @@ export const AiCoachTab: React.FC = () => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
+    // Update state and save to SQLite
     setMessages((prev) => [...prev, userMsg]);
+    saveLocalCoachMessage(userId, userMsg);
     setInputText('');
     setIsLoading(true);
 
@@ -124,6 +237,7 @@ export const AiCoachTab: React.FC = () => {
       };
 
       setMessages((prev) => [...prev, aiMsg]);
+      saveLocalCoachMessage(userId, aiMsg);
     } catch (err) {
       console.warn('[AiCoachTab] Error asking coach:', err);
     } finally {
@@ -132,6 +246,12 @@ export const AiCoachTab: React.FC = () => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
+  };
+
+  const handleClearChat = () => {
+    clearLocalCoachMessages(userId);
+    setMessages([defaultWelcomeMessage]);
+    setShowClearConfirm(false);
   };
 
   const handleAddSuggestedMeal = (msgId: string, meal: ChatMessage['suggestedMeal']) => {
@@ -153,7 +273,7 @@ export const AiCoachTab: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* 1. Clean Coach Header */}
+      {/* 1. Coach Header with Clear Chat Option */}
       <View style={styles.topHeader}>
         <View style={styles.coachAvatarBadge}>
           <Sparkles size={18} color="#FF5B00" />
@@ -164,6 +284,14 @@ export const AiCoachTab: React.FC = () => {
             {remainingCals} kcal • {remainingProt}g protein left today
           </Text>
         </View>
+        <TouchableOpacity
+          style={styles.clearBtn}
+          onPress={() => setShowClearConfirm(true)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Trash2 size={16} color="#8C7B73" />
+        </TouchableOpacity>
       </View>
 
       {/* 2. Messages List */}
@@ -201,16 +329,10 @@ export const AiCoachTab: React.FC = () => {
                   isAi ? styles.bubbleAi : styles.bubbleUser,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.messageText,
-                    isAi ? styles.textAi : styles.textUser,
-                  ]}
-                >
-                  {msg.text}
-                </Text>
+                {/* Clean Formatted Text Renderer (Bold Highlights, Bullets, Numbered Lists) */}
+                <FormattedCoachText text={msg.text} isAi={isAi} />
 
-                {/* Optional Structured Suggested Meal Card */}
+                {/* Structured Suggested Meal Card (Only present when user explicitly asked for food ideas) */}
                 {isAi && msg.suggestedMeal && (
                   <View style={styles.suggestedMealCard}>
                     <View style={styles.suggestedTopRow}>
@@ -229,15 +351,21 @@ export const AiCoachTab: React.FC = () => {
                     </View>
 
                     <View style={styles.suggestedMacroRow}>
-                      <Text style={[styles.suggestedMacro, { color: '#E54D42' }]}>
-                        {msg.suggestedMeal.protein_g}g P
-                      </Text>
-                      <Text style={[styles.suggestedMacro, { color: '#F39C12' }]}>
-                        {msg.suggestedMeal.carbs_g}g C
-                      </Text>
-                      <Text style={[styles.suggestedMacro, { color: '#8B5A2B' }]}>
-                        {msg.suggestedMeal.fat_g}g F
-                      </Text>
+                      <View style={[styles.macroPill, { backgroundColor: '#FFECEB' }]}>
+                        <Text style={[styles.suggestedMacro, { color: '#E54D42' }]}>
+                          {msg.suggestedMeal.protein_g}g Protein
+                        </Text>
+                      </View>
+                      <View style={[styles.macroPill, { backgroundColor: '#FEF6E9' }]}>
+                        <Text style={[styles.suggestedMacro, { color: '#F39C12' }]}>
+                          {msg.suggestedMeal.carbs_g}g Carbs
+                        </Text>
+                      </View>
+                      <View style={[styles.macroPill, { backgroundColor: '#F5EFEA' }]}>
+                        <Text style={[styles.suggestedMacro, { color: '#8B5A2B' }]}>
+                          {msg.suggestedMeal.fat_g}g Fat
+                        </Text>
+                      </View>
                     </View>
 
                     <TouchableOpacity
@@ -252,7 +380,7 @@ export const AiCoachTab: React.FC = () => {
                       {isLogged ? (
                         <>
                           <CheckCircle2 size={14} color="#2E7D32" />
-                          <Text style={styles.addSuggestedTextDone}>Added to Tracker</Text>
+                          <Text style={styles.addSuggestedTextDone}>Added to Daily Tracker</Text>
                         </>
                       ) : (
                         <>
@@ -313,18 +441,21 @@ export const AiCoachTab: React.FC = () => {
         </ScrollView>
       </View>
 
-      {/* 4. Chat Input Bar with Exact Keyboard Height Compensation */}
+      {/* 4. Chat Input Bar */}
       <View
         style={[
           styles.inputContainer,
           {
-            paddingBottom: keyboardHeight > 0 ? keyboardHeight + (Platform.OS === 'android' ? 36 : 12) : 98,
+            paddingBottom:
+              keyboardHeight > 0
+                ? keyboardHeight + (Platform.OS === 'android' ? 36 : 12)
+                : 98,
           },
         ]}
       >
         <TextInput
           style={styles.textInput}
-          placeholder="Ask for food ideas, advice, recipes..."
+          placeholder="Ask nutrition questions, macro checks..."
           placeholderTextColor="#8C7B73"
           value={inputText}
           onChangeText={setInputText}
@@ -341,7 +472,20 @@ export const AiCoachTab: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Success Modal */}
+      {/* Clear Chat Confirmation Modal */}
+      <CustomConfirmModal
+        visible={showClearConfirm}
+        title="Clear Chat History?"
+        message="This will remove your previous chat messages and start a fresh AI Coach session."
+        confirmText="Clear Chat"
+        cancelText="Cancel"
+        confirmStyle="danger"
+        icon={<Trash2 size={24} color="#C62828" />}
+        onConfirm={handleClearChat}
+        onCancel={() => setShowClearConfirm(false)}
+      />
+
+      {/* Success Modal for Meal Logging */}
       <CustomConfirmModal
         visible={!!loggedMealSuccess}
         title="Meal Logged Successfully!"
@@ -395,6 +539,16 @@ const styles = StyleSheet.create({
     color: '#8C7B73',
     marginTop: 1,
   },
+  clearBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FAF6F0',
+    borderWidth: 1,
+    borderColor: '#EFE7DF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   messagesScroll: {
     flex: 1,
   },
@@ -442,17 +596,64 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF5B00',
     borderTopRightRadius: 4,
   },
+  formattedTextContainer: {
+    gap: 3,
+  },
   messageText: {
-    fontSize: 12.5,
-    lineHeight: 18.5,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  messageTextBold: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '700',
   },
   textAi: {
     color: '#2A1810',
-    fontWeight: '500',
+    fontWeight: '400',
   },
   textUser: {
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '400',
+  },
+  textAiBold: {
+    color: '#2A1810',
+    fontWeight: '700',
+  },
+  textUserBold: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 2,
+  },
+  bulletDot: {
+    width: 4.5,
+    height: 4.5,
+    borderRadius: 2.5,
+    backgroundColor: '#FF5B00',
+    marginTop: 7,
+    marginRight: 6,
+  },
+  bulletContent: {
+    flex: 1,
+  },
+  numberedRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 2,
+  },
+  numberedBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF5B00',
+    marginRight: 5,
+    marginTop: 0.5,
+  },
+  numberedContent: {
+    flex: 1,
   },
   messageTimestamp: {
     fontSize: 9,
@@ -515,11 +716,18 @@ const styles = StyleSheet.create({
   },
   suggestedMacroRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     marginTop: 6,
     paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#EFE7DF',
+  },
+  macroPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#EFE7DF',
   },
   suggestedMacro: {
     fontSize: 10,

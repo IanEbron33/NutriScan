@@ -56,6 +56,18 @@ const initTables = (db: SQLite.SQLiteDatabase) => {
         streak_days INTEGER DEFAULT 1,
         updated_at TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS local_coach_messages (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        sender TEXT NOT NULL,
+        text TEXT NOT NULL,
+        suggested_meal TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_coach_msgs_user 
+      ON local_coach_messages (user_id, created_at);
     `);
   } catch (error) {
     console.warn('[LocalDB] Error initializing SQLite tables:', error);
@@ -447,3 +459,94 @@ const mapRowToMealLog = (row: any): DbMealLog => ({
   created_at: row.created_at,
   sync_status: (row.sync_status as SyncStatus) || 'synced',
 });
+
+export interface LocalCoachMessageRecord {
+  id: string;
+  sender: 'user' | 'ai';
+  text: string;
+  timestamp: string;
+  suggestedMeal?: any;
+}
+
+/**
+ * Retrieves persisted chat history for AI Nutrition Coach
+ */
+export const getLocalCoachMessages = (userId: string, limit: number = 60): LocalCoachMessageRecord[] => {
+  try {
+    const db = getDb();
+    const rows = db.getAllSync<any>(
+      `SELECT * FROM local_coach_messages 
+       WHERE user_id = ? 
+       ORDER BY created_at ASC 
+       LIMIT ?;`,
+      [userId, limit]
+    );
+
+    return rows.map((r) => {
+      let suggestedMeal = undefined;
+      if (r.suggested_meal) {
+        try {
+          suggestedMeal = JSON.parse(r.suggested_meal);
+        } catch {
+          // ignore
+        }
+      }
+
+      const dateObj = new Date(r.created_at);
+      const timestamp = !isNaN(dateObj.getTime())
+        ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '';
+
+      return {
+        id: r.id,
+        sender: r.sender === 'user' ? 'user' : 'ai',
+        text: r.text,
+        timestamp,
+        suggestedMeal,
+      };
+    });
+  } catch (error) {
+    console.warn('[LocalDB] Error fetching local coach messages:', error);
+    return [];
+  }
+};
+
+/**
+ * Saves a single coach chat message to local SQLite
+ */
+export const saveLocalCoachMessage = (
+  userId: string,
+  msg: { id: string; sender: 'user' | 'ai'; text: string; suggestedMeal?: any }
+): void => {
+  try {
+    const db = getDb();
+    db.runSync(
+      `INSERT OR REPLACE INTO local_coach_messages (
+        id, user_id, sender, text, suggested_meal, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?);`,
+      [
+        msg.id,
+        userId,
+        msg.sender,
+        msg.text,
+        msg.suggestedMeal ? JSON.stringify(msg.suggestedMeal) : null,
+        new Date().toISOString(),
+      ]
+    );
+  } catch (error) {
+    console.warn('[LocalDB] Error saving local coach message:', error);
+  }
+};
+
+/**
+ * Clears coach chat history for a user
+ */
+export const clearLocalCoachMessages = (userId: string): void => {
+  try {
+    const db = getDb();
+    db.runSync(`DELETE FROM local_coach_messages WHERE user_id = ?;`, [userId]);
+  } catch (error) {
+    console.warn('[LocalDB] Error clearing local coach messages:', error);
+  }
+};
+

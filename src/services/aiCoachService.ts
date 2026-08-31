@@ -17,6 +17,8 @@ export interface ChatMessage {
       vitamin_c_mg?: number;
       iron_mg?: number;
       calcium_mg?: number;
+      potassium_mg?: number;
+      fiber_g?: number;
     };
   };
 }
@@ -34,6 +36,47 @@ const GEMINI_DIRECT_API_KEY =
   process.env.EXPO_PUBLIC_GEMINI_API_KEY ||
   process.env.GEMINI_API_KEY ||
   '';
+
+// Active Gemini Model
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+
+/**
+ * Builds a strict multi-turn contents payload starting with user turn and alternating roles
+ */
+const buildSanitizedContents = (
+  userPrompt: string,
+  history: ChatMessage[]
+): { role: 'user' | 'model'; parts: { text: string }[] }[] => {
+  const validHistory = history.filter((m) => m.text && m.text.trim().length > 0);
+  const firstUserIdx = validHistory.findIndex((m) => m.sender === 'user');
+  const relevantHistory = firstUserIdx !== -1 ? validHistory.slice(firstUserIdx) : [];
+
+  const turns: { role: 'user' | 'model'; parts: { text: string }[] }[] = [];
+
+  for (const msg of relevantHistory.slice(-8)) {
+    const role: 'user' | 'model' = msg.sender === 'user' ? 'user' : 'model';
+    if (turns.length === 0) {
+      if (role === 'user') {
+        turns.push({ role: 'user', parts: [{ text: msg.text }] });
+      }
+    } else {
+      const prevTurn = turns[turns.length - 1];
+      if (prevTurn.role !== role) {
+        turns.push({ role, parts: [{ text: msg.text }] });
+      } else {
+        prevTurn.parts[0].text += `\n${msg.text}`;
+      }
+    }
+  }
+
+  if (turns.length > 0 && turns[turns.length - 1].role === 'user') {
+    turns[turns.length - 1].parts[0].text += `\n${userPrompt}`;
+  } else {
+    turns.push({ role: 'user', parts: [{ text: userPrompt }] });
+  }
+
+  return turns;
+};
 
 /**
  * Sends conversation message to Gemini Nutrition Coach with full user context
@@ -56,24 +99,32 @@ export const askNutritionCoach = async (
   const remainingFat = Math.max(0, fatTarget - todayFat);
 
   const mealSummary = loggedMeals.length > 0
-    ? loggedMeals.map((m) => `- ${m.dish_name}: ${m.calories} kcal (${m.protein_g}g P, ${m.carbs_g}g C, ${m.fat_g}g F)`).join('\n')
+    ? loggedMeals
+        .map(
+          (m) =>
+            `- ${m.dish_name}: ${m.calories} kcal (${m.protein_g}g Protein, ${m.carbs_g}g Carbs, ${m.fat_g}g Fat)`
+        )
+        .join('\n')
     : 'No meals logged yet today.';
 
-  const systemInstruction = `You are NutriScan AI Coach, a world-class, encouraging, science-backed clinical and sports nutritionist.
-You give direct, actionable, concise nutrition advice tailored specifically to the user's daily goals and today's intake.
+  const systemInstruction = `You are NutriScan AI Coach, a world-class, encouraging, science-backed personal nutritionist.
+You give direct, brief, friendly nutrition advice tailored specifically to the user's daily goals and today's intake.
 
-USER PROFILE & CONTEXT:
+USER PROFILE & REAL-TIME INTAKE:
+- Name: ${profile?.full_name || 'User'}
 - Fitness Goal: ${goal}
-- Target: ${calorieTarget} kcal | ${proteinTarget}g Protein | ${carbsTarget}g Carbs | ${fatTarget}g Fat
+- Daily Targets: ${calorieTarget} kcal | ${proteinTarget}g Protein | ${carbsTarget}g Carbs | ${fatTarget}g Fat
 - Consumed Today: ${todayCalories} kcal | ${todayProtein}g Protein | ${todayCarbs}g Carbs | ${todayFat}g Fat
-- Remaining Today: ${remainingCals} kcal | ${remainingProt}g Protein | ${remainingCarbs}g Carbs | ${remainingFat}g Fat
+- Remaining Budget: ${remainingCals} kcal | ${remainingProt}g Protein | ${remainingCarbs}g Carbs | ${remainingFat}g Fat
 - Meals Eaten Today:
 ${mealSummary}
 
-RULES:
-1. Keep answers concise, clear, and easy to read on mobile screens (bullet points, short paragraphs).
-2. NEVER use emojis as icons. Maintain a clean, professional, warm tone.
-3. If recommending a specific meal or snack that the user can eat, include a JSON block at the very end formatted EXACTLY like this:
+CRITICAL RULES:
+1. STRICT BREVITY: Keep all answers very short, concise, and punchy (max 2 to 4 sentences or 2 to 3 bullet points). Do not write long paragraphs or walls of text.
+2. SPARING BOLDING: Only use **bold** on significant individual keywords or numbers (e.g. **25g protein**, **hydration**, **spinach**). NEVER bold entire sentences, whole headers, or entire lines.
+3. ZERO EMOJIS: Do not use emojis anywhere in your response.
+4. NO UNSOLICITED FOOD RECOMMENDATIONS: Do NOT recommend a specific dish or include a JSON meal block UNLESS the user explicitly asks for food ideas, meal suggestions, recipes, or what to eat. If the user asks a general question, macro review, or fitness inquiry, answer directly without proposing food items or JSON.
+5. EXPLICIT FOOD RECOMMENDATION JSON: ONLY when the user explicitly asks for a meal or snack suggestion/recipe, append a JSON block at the very end formatted EXACTLY like this:
 \`\`\`json
 {
   "suggestedMeal": {
@@ -90,31 +141,25 @@ RULES:
   }
 }
 \`\`\`
-Only include the json block if you are proposing a concrete meal/snack that fits their remaining budget.`;
+If the user did not explicitly ask for a food recommendation, do NOT include the JSON block.`;
 
-  // Try direct Gemini 2.5/2.0 API first
+  // 1. Primary Direct Gemini API Call (gemini-3.5-flash-lite)
   if (GEMINI_DIRECT_API_KEY) {
-    try {
-      const contents = [
-        ...history.slice(-6).map((msg) => ({
-          role: msg.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.text }],
-        })),
-        {
-          role: 'user',
-          parts: [{ text: userPrompt }],
-        },
-      ];
+    const contents = buildSanitizedContents(userPrompt, history);
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_DIRECT_API_KEY}`;
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_DIRECT_API_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_DIRECT_API_KEY,
+        },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemInstruction }] },
           contents,
           generationConfig: {
-            temperature: 0.7,
+            temperature: 0.4,
             maxOutputTokens: 1000,
           },
         }),
@@ -123,24 +168,48 @@ Only include the json block if you are proposing a concrete meal/snack that fits
       if (response.ok) {
         const json = await response.json();
         const rawText = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        return parseCoachResponse(rawText);
+        if (rawText.trim().length > 0) {
+          return parseCoachResponse(rawText);
+        }
+      } else {
+        const errText = await response.text();
+        console.warn(`[AICoach] ${GEMINI_MODEL} returned status ${response.status}:`, errText);
       }
-    } catch (err) {
-      console.warn('[AICoach] Direct Gemini call error, trying fallback:', err);
+    } catch (modelErr) {
+      console.warn(`[AICoach] Error calling ${GEMINI_MODEL}:`, modelErr);
     }
   }
 
-  // Fallback heuristic response if offline or API key unavailable
+  // 2. Supabase Edge Function Fallback
+  try {
+    const { data: edgeData, error: edgeError } = await supabase.functions.invoke('ask-coach', {
+      body: {
+        userPrompt,
+        context: {
+          profile,
+          todayCalories,
+          todayProtein,
+          todayCarbs,
+          todayFat,
+          loggedMeals,
+          calorieTarget,
+          proteinTarget,
+          remainingCals,
+          remainingProt,
+        },
+      },
+    });
+
+    if (!edgeError && edgeData?.reply) {
+      return parseCoachResponse(edgeData.reply);
+    }
+  } catch (edgeErr) {
+    console.warn('[AICoach] Edge function call failed:', edgeErr);
+  }
+
+  // 3. Fallback when network is completely offline
   return {
-    reply: `Based on your remaining ${remainingCals} kcal and ${remainingProt}g protein target for today, I recommend a balanced meal high in lean protein and fiber. Consider grilled chicken breast with quinoa and steamed broccoli, or a Greek yogurt bowl with mixed seeds!`,
-    suggestedMeal: {
-      dish_name: 'Greek Yogurt & Mixed Berry Protein Bowl',
-      calories: Math.min(remainingCals || 320, 320),
-      protein_g: 26,
-      carbs_g: 30,
-      fat_g: 6,
-      micronutrients: { vitamin_c_mg: 18, calcium_mg: 220, iron_mg: 1.2 },
-    },
+    reply: `I'm having trouble connecting to the AI nutrition service right now. Please check your internet connection and verify that your Gemini API key is configured. In the meantime, you have ${remainingCals} kcal and ${remainingProt}g protein remaining today.`,
   };
 };
 
@@ -156,7 +225,7 @@ const parseCoachResponse = (
   const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/);
   if (jsonMatch && jsonMatch[1]) {
     try {
-      const parsed = JSON.parse(jsonMatch[1]);
+      const parsed = JSON.parse(jsonMatch[1].trim());
       if (parsed?.suggestedMeal) {
         suggestedMeal = parsed.suggestedMeal;
         cleanText = rawText.replace(/```json\s*[\s\S]*?\s*```/, '').trim();
