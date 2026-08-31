@@ -68,14 +68,17 @@ const ChunkedSecureStoreAdapter = {
   },
 };
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://zymgghmrsqbplxydxepf.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+import { APP_CONFIG } from '../config/appConfig';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: ChunkedSecureStoreAdapter,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
+export const supabase = createClient(
+  APP_CONFIG.SUPABASE_URL,
+  APP_CONFIG.SUPABASE_ANON_KEY,
+  {
+    auth: {
+      storage: ChunkedSecureStoreAdapter,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  }
+);

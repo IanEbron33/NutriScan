@@ -32,10 +32,9 @@ interface CoachContext {
   loggedMeals: MealLog[];
 }
 
-const GEMINI_DIRECT_API_KEY =
-  process.env.EXPO_PUBLIC_GEMINI_API_KEY ||
-  process.env.GEMINI_API_KEY ||
-  '';
+import { APP_CONFIG } from '../config/appConfig';
+
+const GEMINI_DIRECT_API_KEY = APP_CONFIG.GEMINI_API_KEY;
 
 // Active Gemini Model
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';

@@ -2,13 +2,12 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 import Constants, { AppOwnership, ExecutionEnvironment } from 'expo-constants';
 import { supabase } from './supabase';
+import { APP_CONFIG } from '../config/appConfig';
 
 // Ensure any completed web auth session in Expo Go returns cleanly
 WebBrowser.maybeCompleteAuthSession();
 
-const webClientId =
-  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-  '654804823627-0eu3kmdsja07sjhp5g3e5ks81elg0bt8.apps.googleusercontent.com';
+const webClientId = APP_CONFIG.GOOGLE_WEB_CLIENT_ID;
 
 // Check if running inside standard Expo Go app
 export const isExpoGo = (): boolean => {

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
+import { APP_CONFIG } from '../config/appConfig';
 
-const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
+const GEMINI_API_KEY = APP_CONFIG.GEMINI_API_KEY;
 
 export interface FoodItemBreakdown {
   name: string;
