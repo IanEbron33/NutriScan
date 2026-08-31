@@ -77,6 +77,18 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   const [manualCarbs, setManualCarbs] = useState('');
   const [manualFat, setManualFat] = useState('');
 
+  // Custom Warm In-App Toast
+  const [scannerToast, setScannerToast] = useState<{ title: string; message: string; type?: 'info' | 'error' | 'warning' } | null>(null);
+  const toastTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const showToast = (title: string, message: string, type: 'info' | 'error' | 'warning' = 'info') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setScannerToast({ title, message, type });
+    toastTimer.current = setTimeout(() => {
+      setScannerToast(null);
+    }, 3200);
+  };
+
   // Laser scanner, loading radar spin & floating card animation
   const scanLineAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -184,7 +196,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   // 1. Shutter Snap (Takes photo directly from live CameraView or native camera)
   const handleShutterSnap = async () => {
     if (capturedImages.length >= 3) {
-      Alert.alert('3 Slots Filled', 'You have captured all 3 photo slots. Tap Analyze or remove a photo to retake.');
+      showToast('3 Slots Filled', 'You have captured all 3 photo slots. Tap Analyze or remove a photo to retake.', 'info');
       return;
     }
 
@@ -234,13 +246,13 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
       }
     }
 
-    Alert.alert('Capture Failed', 'Could not take photo. Please check camera permissions or select a photo from your gallery.');
+    showToast('Capture Failed', 'Could not take photo. Please check camera permissions or select a photo from your gallery.', 'error');
   };
 
   // 2. Photo Gallery Picker (Fills next open slot up to 3)
   const handlePickFromGallery = async () => {
     if (capturedImages.length >= 3) {
-      Alert.alert('3 Slots Filled', 'You have captured all 3 photo slots. Tap Analyze or remove a photo to retake.');
+      showToast('3 Slots Filled', 'You have captured all 3 photo slots. Tap Analyze or remove a photo to retake.', 'info');
       return;
     }
 
@@ -250,7 +262,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
       try {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) {
-          Alert.alert('Photo Access', 'Please allow photo library access to select food photos.');
+          showToast('Photo Access Required', 'Please allow photo library access to select food photos.', 'warning');
           return;
         }
 
@@ -269,7 +281,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         }
       } catch (galleryErr) {
         console.warn('Native gallery picker error:', galleryErr);
-        Alert.alert('Gallery Error', 'Could not select photo from gallery.');
+        showToast('Gallery Error', 'Could not select photo from gallery.', 'error');
       }
     }
   };
@@ -282,7 +294,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   // 3. Process Multi-Angle Food Images with Gemini AI
   const handleAnalyzeMultiImages = async () => {
     if (capturedImages.length === 0) {
-      Alert.alert('Snap Food Photo', 'Please take at least 1 photo before analyzing.');
+      showToast('Snap Food Photo', 'Please take at least 1 photo before analyzing.', 'warning');
       return;
     }
 
@@ -293,7 +305,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
       setIsResultModalOpen(true);
     } catch (err: any) {
       console.warn('Multi-image food scan error:', err);
-      Alert.alert('Scan Failed', err?.message || 'Could not analyze food images. Please check your Supabase Edge Function secrets.');
+      showToast('Scan Failed', err?.message || 'Could not analyze food images. Please check your Supabase Edge Function secrets.', 'error');
     } finally {
       setIsScanning(false);
     }
@@ -307,7 +319,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
     const f = parseInt(manualFat, 10) || 0;
 
     if (!manualTitle.trim() || isNaN(cals) || cals <= 0) {
-      Alert.alert('Invalid Input', 'Please provide a meal title and positive calories.');
+      showToast('Invalid Input', 'Please provide a meal title and positive calories.', 'warning');
       return;
     }
 
@@ -440,6 +452,25 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
                 />
               </TouchableOpacity>
             </View>
+
+            {/* Custom Warm Scanner Toast Notification */}
+            {scannerToast && (
+              <View style={styles.toastBanner}>
+                <View style={styles.toastIconBox}>
+                  {scannerToast.type === 'error' ? (
+                    <X size={14} color="#C62828" strokeWidth={2.5} />
+                  ) : scannerToast.type === 'warning' ? (
+                    <Zap size={14} color="#FF5B00" strokeWidth={2.2} />
+                  ) : (
+                    <Sparkles size={14} color="#FF5B00" strokeWidth={2.2} />
+                  )}
+                </View>
+                <View style={styles.toastTextCol}>
+                  <Text style={styles.toastTitle}>{scannerToast.title}</Text>
+                  <Text style={styles.toastMessage}>{scannerToast.message}</Text>
+                </View>
+              </View>
+            )}
           </SafeAreaView>
 
           {/* Center Reticle Focus Box */}
@@ -881,6 +912,46 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
+  },
+  toastBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(250, 246, 240, 0.96)',
+    marginHorizontal: 20,
+    marginTop: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1.2,
+    borderColor: '#FFE0CC',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    gap: 10,
+  },
+  toastIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastTextCol: {
+    flex: 1,
+  },
+  toastTitle: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#2A1810',
+  },
+  toastMessage: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#7D6E66',
+    marginTop: 1,
   },
 
   // Reticle

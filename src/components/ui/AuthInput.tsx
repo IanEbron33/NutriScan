@@ -8,6 +8,8 @@ import {
   TextInputProps,
 } from 'react-native';
 
+import { Mail, Lock, Eye, EyeOff } from './LucideIcons';
+
 interface AuthInputProps extends TextInputProps {
   label: string;
   iconName?: 'mail' | 'lock';
@@ -47,9 +49,9 @@ export const AuthInput: React.FC<AuthInputProps> = ({
         {/* Leading Icon */}
         <View style={styles.iconContainer}>
           {iconName === 'mail' ? (
-            <Text style={styles.iconEmoji}>✉️</Text>
+            <Mail size={18} color={isFocused ? '#FF5B00' : '#8C7B73'} strokeWidth={2} />
           ) : iconName === 'lock' ? (
-            <Text style={styles.iconEmoji}>🔒</Text>
+            <Lock size={18} color={isFocused ? '#FF5B00' : '#8C7B73'} strokeWidth={2} />
           ) : null}
         </View>
 
@@ -70,7 +72,11 @@ export const AuthInput: React.FC<AuthInputProps> = ({
             onPress={() => setShowPassword((prev) => !prev)}
             activeOpacity={0.7}
           >
-            <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '🙈'}</Text>
+            {showPassword ? (
+              <Eye size={18} color="#8C7B73" strokeWidth={2} />
+            ) : (
+              <EyeOff size={18} color="#8C7B73" strokeWidth={2} />
+            )}
           </TouchableOpacity>
         )}
       </View>

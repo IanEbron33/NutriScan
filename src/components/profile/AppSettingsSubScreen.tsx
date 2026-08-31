@@ -37,12 +37,12 @@ interface AppSettingsSubScreenProps {
   onBack: () => void;
 }
 
-const ITEM_HEIGHT = 40;
-const WHEEL_HEIGHT = ITEM_HEIGHT * 3; // 120px (1 above, 1 selected in middle, 1 below)
-
 const HOURS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
 const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
-const PERIODS = ['AM', 'PM'];
+const PERIODS: Array<'AM' | 'PM'> = ['AM', 'PM'];
+
+const ITEM_HEIGHT = 44;
+const WHEEL_HEIGHT = ITEM_HEIGHT * 3; // 132px (1 above, 1 selected in middle, 1 below)
 
 export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
   unitSystem,

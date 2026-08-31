@@ -11,6 +11,7 @@ import {
   Easing,
   Keyboard,
   Platform,
+  Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -22,6 +23,10 @@ import { DiaryTab } from '../components/tabs/DiaryTab';
 import { AiCoachTab } from '../components/tabs/AiCoachTab';
 import { ProfileTab } from '../components/tabs/ProfileTab';
 import { MealDetailsModal } from '../components/modals/MealDetailsModal';
+import { MealReminderAlertModal } from '../components/modals/MealReminderAlertModal';
+import { MicronutrientsDetailsModal } from '../components/modals/MicronutrientsDetailsModal';
+import { getLocalAppSettings } from '../services/localDatabase';
+import { playBellSound } from '../services/notificationService';
 import { DbMealLog } from '../types/database';
 import {
   UtensilsCrossed,
@@ -78,6 +83,79 @@ export const DashboardScreen: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [selectedMealForDetails, setSelectedMealForDetails] = useState<MealLog | DbMealLog | null>(null);
+  const [showMicrosModal, setShowMicrosModal] = useState(false);
+
+  // Active in-app meal reminder modal state
+  const [activeReminderAlert, setActiveReminderAlert] = useState<{
+    visible: boolean;
+    mealType: 'breakfast' | 'lunch' | 'dinner';
+    timeString: string;
+  } | null>(null);
+  const lastTriggeredReminder = useRef<{ key: string; timestamp: number } | null>(null);
+
+  // Active in-app timer: checks scheduled reminder times every 15s
+  useEffect(() => {
+    const checkMealTimes = () => {
+      try {
+        const settings = getLocalAppSettings();
+        const now = new Date();
+        const currentHours = now.getHours();
+        const currentMins = now.getMinutes();
+
+        const formatTo12h = (h: number, m: number) => {
+          const period = h >= 12 ? 'PM' : 'AM';
+          const displayH = h % 12 === 0 ? 12 : h % 12;
+          return `${displayH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${period}`;
+        };
+
+        const now12h = formatTo12h(currentHours, currentMins);
+
+        const normalize = (t?: string) => {
+          if (!t) return '';
+          const parts = t.trim().split(' ');
+          if (parts.length < 2) return t;
+          const [h, m] = parts[0].split(':');
+          return `${h.padStart(2, '0')}:${m.padStart(2, '0')} ${parts[1].toUpperCase()}`;
+        };
+
+        const currentNorm = normalize(now12h);
+
+        const checkMeal = (type: 'breakfast' | 'lunch' | 'dinner', enabled: boolean, timeStr: string) => {
+          if (!enabled) return;
+          if (normalize(timeStr) === currentNorm) {
+            const reminderKey = `${type}_${now.toDateString()}_${currentNorm}`;
+            const nowTs = Date.now();
+            if (
+              !lastTriggeredReminder.current ||
+              lastTriggeredReminder.current.key !== reminderKey ||
+              nowTs - lastTriggeredReminder.current.timestamp > 120000
+            ) {
+              lastTriggeredReminder.current = { key: reminderKey, timestamp: nowTs };
+              playBellSound();
+              try {
+                Vibration.vibrate([0, 350, 200, 350]);
+              } catch {}
+              setActiveReminderAlert({
+                visible: true,
+                mealType: type,
+                timeString: timeStr,
+              });
+            }
+          }
+        };
+
+        checkMeal('breakfast', settings.breakfast_enabled, settings.breakfast_time);
+        checkMeal('lunch', settings.lunch_enabled, settings.lunch_time);
+        checkMeal('dinner', settings.dinner_enabled, settings.dinner_time);
+      } catch (err) {
+        console.warn('[Dashboard] In-app reminder check error:', err);
+      }
+    };
+
+    checkMealTimes();
+    const interval = setInterval(checkMealTimes, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -337,66 +415,120 @@ export const DashboardScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* 5. Micronutrients Snapshot */}
-          <View style={styles.microSection}>
-            <View style={styles.microHeaderRow}>
-              <View style={styles.microTitleGroup}>
-                <Activity size={18} color="#2A1810" />
-                <Text style={styles.microSectionTitle}>Micronutrients</Text>
-              </View>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Text style={styles.viewAllText}>View All</Text>
-              </TouchableOpacity>
-            </View>
+          {/* 5. Dynamic Micronutrients Snapshot */}
+          {(() => {
+            const vitCPct = Math.min(100, Math.round((todayMicros.vitamin_c_mg / 90) * 100));
+            const ironPct = Math.min(100, Math.round((todayMicros.iron_mg / 18) * 100));
+            const calciumPct = Math.min(100, Math.round((todayMicros.calcium_mg / 1000) * 100));
 
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.microCardsScroll}
-            >
-              {/* Card 1: Vitamin C */}
-              <View style={styles.microCard}>
-                <View style={styles.microCardTopRow}>
-                  <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
-                    <UtensilsCrossed size={16} color="#2E7D32" />
+            return (
+              <View style={styles.microSection}>
+                <View style={styles.microHeaderRow}>
+                  <View style={styles.microTitleGroup}>
+                    <Activity size={18} color="#2A1810" />
+                    <Text style={styles.microSectionTitle}>Micronutrients</Text>
                   </View>
-                  <CheckCircle2 size={16} color="#2E7D32" />
+                  <TouchableOpacity
+                    onPress={() => setShowMicrosModal(true)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.viewAllText}>View All</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.microCardName}>Vitamin C</Text>
-                <Text style={[styles.microCardStatus, { color: '#2E7D32' }]}>
-                  Optimal Level
-                </Text>
-              </View>
 
-              {/* Card 2: Iron */}
-              <View style={styles.microCard}>
-                <View style={styles.microCardTopRow}>
-                  <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
-                    <Droplet size={16} color="#F39C12" />
-                  </View>
-                  <Text style={styles.microPercentText}>75%</Text>
-                </View>
-                <Text style={styles.microCardName}>Iron</Text>
-                <View style={styles.miniBarTrack}>
-                  <View style={[styles.miniBarFill, { width: '75%', backgroundColor: '#8B5A2B' }]} />
-                </View>
-              </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.microCardsScroll}
+                >
+                  {/* Card 1: Vitamin C */}
+                  <TouchableOpacity
+                    style={styles.microCard}
+                    onPress={() => setShowMicrosModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.microCardTopRow}>
+                      <View style={[styles.microIconBox, { backgroundColor: '#E8F5E9' }]}>
+                        <Sparkles size={15} color="#2E7D32" />
+                      </View>
+                      <Text style={[styles.microPercentText, { color: vitCPct >= 85 ? '#2E7D32' : vitCPct >= 40 ? '#F39C12' : '#8B5A2B' }]}>
+                        {vitCPct}%
+                      </Text>
+                    </View>
+                    <Text style={styles.microCardName}>Vitamin C</Text>
+                    <View style={styles.miniBarTrack}>
+                      <View
+                        style={[
+                          styles.miniBarFill,
+                          {
+                            width: `${vitCPct}%`,
+                            backgroundColor: vitCPct >= 85 ? '#2E7D32' : vitCPct >= 40 ? '#F39C12' : '#E54D42',
+                          },
+                        ]}
+                      />
+                    </View>
+                  </TouchableOpacity>
 
-              {/* Card 3: Calcium */}
-              <View style={[styles.microCard, { borderColor: '#FFE4CC', backgroundColor: '#FFFDFB' }]}>
-                <View style={styles.microCardTopRow}>
-                  <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
-                    <Text style={styles.microElementTag}>Ca</Text>
-                  </View>
-                  <AlertTriangle size={15} color="#C62828" />
-                </View>
-                <Text style={styles.microCardName}>Calcium</Text>
-                <Text style={[styles.microCardStatus, { color: '#C62828' }]}>
-                  Needs Boost
-                </Text>
+                  {/* Card 2: Iron */}
+                  <TouchableOpacity
+                    style={styles.microCard}
+                    onPress={() => setShowMicrosModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.microCardTopRow}>
+                      <View style={[styles.microIconBox, { backgroundColor: '#FEF6E9' }]}>
+                        <Droplet size={15} color="#F39C12" />
+                      </View>
+                      <Text style={[styles.microPercentText, { color: ironPct >= 85 ? '#2E7D32' : ironPct >= 40 ? '#F39C12' : '#8B5A2B' }]}>
+                        {ironPct}%
+                      </Text>
+                    </View>
+                    <Text style={styles.microCardName}>Iron</Text>
+                    <View style={styles.miniBarTrack}>
+                      <View
+                        style={[
+                          styles.miniBarFill,
+                          {
+                            width: `${ironPct}%`,
+                            backgroundColor: ironPct >= 85 ? '#2E7D32' : ironPct >= 40 ? '#F39C12' : '#8B5A2B',
+                          },
+                        ]}
+                      />
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Card 3: Calcium */}
+                  <TouchableOpacity
+                    style={[styles.microCard, { borderColor: '#FFE4CC', backgroundColor: '#FFFDFB' }]}
+                    onPress={() => setShowMicrosModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.microCardTopRow}>
+                      <View style={[styles.microIconBox, { backgroundColor: '#FFF0E6' }]}>
+                        <Text style={styles.microElementTag}>Ca</Text>
+                      </View>
+                      <Text style={[styles.microPercentText, { color: calciumPct >= 85 ? '#2E7D32' : calciumPct >= 40 ? '#F39C12' : '#C62828' }]}>
+                        {calciumPct}%
+                      </Text>
+                    </View>
+                    <Text style={styles.microCardName}>Calcium</Text>
+                    <View style={styles.miniBarTrack}>
+                      <View
+                        style={[
+                          styles.miniBarFill,
+                          {
+                            width: `${calciumPct}%`,
+                            backgroundColor: calciumPct >= 85 ? '#2E7D32' : calciumPct >= 40 ? '#F39C12' : '#C62828',
+                          },
+                        ]}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                </ScrollView>
               </View>
-            </ScrollView>
-          </View>
+            );
+          })()}
 
           {/* 6. Today's Meals Dynamic Timeline */}
           <View style={styles.mealsSection}>
@@ -531,6 +663,28 @@ export const DashboardScreen: React.FC = () => {
         visible={!!selectedMealForDetails}
         onClose={() => setSelectedMealForDetails(null)}
         onDelete={(mealId) => deleteMeal(mealId)}
+      />
+
+      {/* In-App Active Meal Reminder Alert Modal */}
+      {activeReminderAlert && (
+        <MealReminderAlertModal
+          visible={activeReminderAlert.visible}
+          mealType={activeReminderAlert.mealType}
+          timeString={activeReminderAlert.timeString}
+          onClose={() => setActiveReminderAlert(null)}
+          onLogMeal={() => {
+            setActiveReminderAlert(null);
+            setIsScannerOpen(true);
+          }}
+        />
+      )}
+
+      {/* Full Micronutrients Breakdown Draggable Bottom Sheet */}
+      <MicronutrientsDetailsModal
+        visible={showMicrosModal}
+        onClose={() => setShowMicrosModal(false)}
+        loggedMeals={loggedMeals}
+        todayMicros={todayMicros}
       />
 
       {/* 2. Diary Tab */}

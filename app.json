@@ -27,7 +27,11 @@
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "POST_NOTIFICATIONS",
+        "VIBRATE"
       ]
     },
     "web": {
@@ -47,6 +51,18 @@
         "expo-camera",
         {
           "cameraPermission": "NutriScan requires camera access to scan and analyze food nutrition in real-time."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#FF5B00",
+          "sounds": [
+            "./assets/sounds/bell_chime.wav",
+            "./assets/sounds/meal_success.wav"
+          ],
+          "defaultChannel": "meal-reminders"
         }
       ],
       "expo-sqlite"

@@ -8,6 +8,7 @@ import {
   syncRecentMealLogs,
 } from '../services/nutritionService';
 import { calculateLocalStreak } from '../services/localDatabase';
+import { playMealSuccessSound } from '../services/notificationService';
 import { DbMealLog, MicronutrientsData, DetectedFoodItem } from '../types/database';
 
 export interface MealLog {
@@ -162,6 +163,8 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Add meal log (Optimistic UI + SQLite save + Supabase sync)
   const addMealLog = async (newMeal: Omit<MealLog, 'id' | 'logged_at'>) => {
+    playMealSuccessSound();
+
     const userId = user?.id || 'guest_user';
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const nowIso = new Date().toISOString();

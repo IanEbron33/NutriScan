@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,6 +13,8 @@ import { PrimaryGoal } from '../../types/database';
 import { CustomConfirmModal } from '../modals/CustomConfirmModal';
 import { DailyGoalsSubScreen } from '../profile/DailyGoalsSubScreen';
 import { AppSettingsSubScreen } from '../profile/AppSettingsSubScreen';
+import { getLocalAppSettings, saveLocalAppSettings } from '../../services/localDatabase';
+import { scheduleMealReminder, syncAllMealReminders } from '../../services/notificationService';
 import {
   UserIcon,
   Target,
@@ -33,7 +35,7 @@ export const ProfileTab: React.FC = () => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
-  // App Settings State
+  // App Settings State (Loaded from SQLite)
   const [unitSystem, setUnitSystem] = useState<'metric' | 'imperial'>('metric');
   const [breakfastEnabled, setBreakfastEnabled] = useState(true);
   const [breakfastTime, setBreakfastTime] = useState('08:30 AM');
@@ -41,6 +43,62 @@ export const ProfileTab: React.FC = () => {
   const [lunchTime, setLunchTime] = useState('12:30 PM');
   const [dinnerEnabled, setDinnerEnabled] = useState(true);
   const [dinnerTime, setDinnerTime] = useState('07:00 PM');
+
+  // Load persistent settings from SQLite on mount & sync reminders
+  useEffect(() => {
+    const loaded = getLocalAppSettings();
+    setUnitSystem(loaded.unit_system);
+    setBreakfastEnabled(loaded.breakfast_enabled);
+    setBreakfastTime(loaded.breakfast_time);
+    setLunchEnabled(loaded.lunch_enabled);
+    setLunchTime(loaded.lunch_time);
+    setDinnerEnabled(loaded.dinner_enabled);
+    setDinnerTime(loaded.dinner_time);
+
+    // Synchronize OS recurring notifications
+    syncAllMealReminders(loaded);
+  }, []);
+
+  const handleUnitSystemChange = (unit: 'metric' | 'imperial') => {
+    setUnitSystem(unit);
+    saveLocalAppSettings({ unit_system: unit });
+  };
+
+  const handleBreakfastEnabledChange = (val: boolean) => {
+    setBreakfastEnabled(val);
+    saveLocalAppSettings({ breakfast_enabled: val });
+    scheduleMealReminder('breakfast', breakfastTime, val);
+  };
+
+  const handleBreakfastTimeChange = (time: string) => {
+    setBreakfastTime(time);
+    saveLocalAppSettings({ breakfast_time: time });
+    scheduleMealReminder('breakfast', time, breakfastEnabled);
+  };
+
+  const handleLunchEnabledChange = (val: boolean) => {
+    setLunchEnabled(val);
+    saveLocalAppSettings({ lunch_enabled: val });
+    scheduleMealReminder('lunch', lunchTime, val);
+  };
+
+  const handleLunchTimeChange = (time: string) => {
+    setLunchTime(time);
+    saveLocalAppSettings({ lunch_time: time });
+    scheduleMealReminder('lunch', time, lunchEnabled);
+  };
+
+  const handleDinnerEnabledChange = (val: boolean) => {
+    setDinnerEnabled(val);
+    saveLocalAppSettings({ dinner_enabled: val });
+    scheduleMealReminder('dinner', dinnerTime, val);
+  };
+
+  const handleDinnerTimeChange = (time: string) => {
+    setDinnerTime(time);
+    saveLocalAppSettings({ dinner_time: time });
+    scheduleMealReminder('dinner', time, dinnerEnabled);
+  };
 
   const handleSaveGoals = async (data: {
     daily_calorie_target: number;
@@ -91,19 +149,19 @@ export const ProfileTab: React.FC = () => {
     return (
       <AppSettingsSubScreen
         unitSystem={unitSystem}
-        onUnitSystemChange={setUnitSystem}
+        onUnitSystemChange={handleUnitSystemChange}
         breakfastEnabled={breakfastEnabled}
-        onBreakfastEnabledChange={setBreakfastEnabled}
+        onBreakfastEnabledChange={handleBreakfastEnabledChange}
         breakfastTime={breakfastTime}
-        onBreakfastTimeChange={setBreakfastTime}
+        onBreakfastTimeChange={handleBreakfastTimeChange}
         lunchEnabled={lunchEnabled}
-        onLunchEnabledChange={setLunchEnabled}
+        onLunchEnabledChange={handleLunchEnabledChange}
         lunchTime={lunchTime}
-        onLunchTimeChange={setLunchTime}
+        onLunchTimeChange={handleLunchTimeChange}
         dinnerEnabled={dinnerEnabled}
-        onDinnerEnabledChange={setDinnerEnabled}
+        onDinnerEnabledChange={handleDinnerEnabledChange}
         dinnerTime={dinnerTime}
-        onDinnerTimeChange={setDinnerTime}
+        onDinnerTimeChange={handleDinnerTimeChange}
         onBack={() => setCurrentScreen('menu')}
       />
     );

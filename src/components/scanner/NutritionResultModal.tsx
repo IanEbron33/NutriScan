@@ -487,7 +487,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
     paddingTop: 2,
     paddingBottom: 6,
   },
@@ -499,7 +499,8 @@ const styles = StyleSheet.create({
     borderColor: '#EFE7DF',
   },
   scrollContent: {
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   multiImagesScroll: {
     gap: 10,
@@ -887,7 +888,9 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     gap: 10,
-    marginTop: 6,
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   primaryButton: {
     backgroundColor: '#FF5B00',

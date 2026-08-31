@@ -68,6 +68,18 @@ const initTables = (db: SQLite.SQLiteDatabase) => {
 
       CREATE INDEX IF NOT EXISTS idx_coach_msgs_user 
       ON local_coach_messages (user_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS local_app_settings (
+        id TEXT PRIMARY KEY,
+        unit_system TEXT DEFAULT 'metric',
+        breakfast_enabled INTEGER DEFAULT 1,
+        breakfast_time TEXT DEFAULT '08:30 AM',
+        lunch_enabled INTEGER DEFAULT 1,
+        lunch_time TEXT DEFAULT '12:30 PM',
+        dinner_enabled INTEGER DEFAULT 1,
+        dinner_time TEXT DEFAULT '07:00 PM',
+        updated_at TEXT
+      );
     `);
   } catch (error) {
     console.warn('[LocalDB] Error initializing SQLite tables:', error);
@@ -549,4 +561,80 @@ export const clearLocalCoachMessages = (userId: string): void => {
     console.warn('[LocalDB] Error clearing local coach messages:', error);
   }
 };
+
+export interface LocalAppSettings {
+  unit_system: 'metric' | 'imperial';
+  breakfast_enabled: boolean;
+  breakfast_time: string;
+  lunch_enabled: boolean;
+  lunch_time: string;
+  dinner_enabled: boolean;
+  dinner_time: string;
+}
+
+const DEFAULT_APP_SETTINGS: LocalAppSettings = {
+  unit_system: 'metric',
+  breakfast_enabled: true,
+  breakfast_time: '08:30 AM',
+  lunch_enabled: true,
+  lunch_time: '12:30 PM',
+  dinner_enabled: true,
+  dinner_time: '07:00 PM',
+};
+
+/**
+ * Loads user app settings and meal reminder preferences from SQLite
+ */
+export const getLocalAppSettings = (): LocalAppSettings => {
+  try {
+    const db = getDb();
+    const rows = db.getAllSync<any>(
+      `SELECT * FROM local_app_settings WHERE id = 'user_settings' LIMIT 1;`
+    );
+    if (rows && rows.length > 0) {
+      const r = rows[0];
+      return {
+        unit_system: r.unit_system === 'imperial' ? 'imperial' : 'metric',
+        breakfast_enabled: Boolean(r.breakfast_enabled),
+        breakfast_time: r.breakfast_time || '08:30 AM',
+        lunch_enabled: Boolean(r.lunch_enabled),
+        lunch_time: r.lunch_time || '12:30 PM',
+        dinner_enabled: Boolean(r.dinner_enabled),
+        dinner_time: r.dinner_time || '07:00 PM',
+      };
+    }
+  } catch (error) {
+    console.warn('[LocalDB] Error loading local app settings:', error);
+  }
+  return DEFAULT_APP_SETTINGS;
+};
+
+/**
+ * Saves or updates user app settings and meal reminder preferences in SQLite
+ */
+export const saveLocalAppSettings = (settings: Partial<LocalAppSettings>): void => {
+  try {
+    const current = getLocalAppSettings();
+    const merged: LocalAppSettings = { ...current, ...settings };
+    const db = getDb();
+    db.runSync(
+      `INSERT OR REPLACE INTO local_app_settings (
+        id, unit_system, breakfast_enabled, breakfast_time, lunch_enabled, lunch_time, dinner_enabled, dinner_time, updated_at
+      ) VALUES ('user_settings', ?, ?, ?, ?, ?, ?, ?, ?);`,
+      [
+        merged.unit_system,
+        merged.breakfast_enabled ? 1 : 0,
+        merged.breakfast_time,
+        merged.lunch_enabled ? 1 : 0,
+        merged.lunch_time,
+        merged.dinner_enabled ? 1 : 0,
+        merged.dinner_time,
+        new Date().toISOString(),
+      ]
+    );
+  } catch (error) {
+    console.warn('[LocalDB] Error saving local app settings:', error);
+  }
+};
+
 

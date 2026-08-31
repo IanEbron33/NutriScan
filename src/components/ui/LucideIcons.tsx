@@ -963,3 +963,63 @@ export const PenLine: React.FC<IconProps> = ({
   </Svg>
 );
 
+export const Volume2: React.FC<IconProps> = ({
+  size = 20,
+  color = '#FF5B00',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path
+      d="M11 5 6 9H2v6h4l5 4V5Z"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"
+      stroke={color}
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+export const Mail: React.FC<IconProps> = ({
+  size = 20,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Rect width="20" height="16" x="2" y="4" rx="2" stroke={color} strokeWidth={strokeWidth} />
+    <Path d="M22 7L12 13L2 7" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+export const Lock: React.FC<IconProps> = ({
+  size = 20,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Rect width="18" height="11" x="3" y="11" rx="2" ry="2" stroke={color} strokeWidth={strokeWidth} />
+    <Path d="M7 11V7C7 4.24 9.24 2 12 2C14.76 2 17 4.24 17 7V11" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+export const EyeOff: React.FC<IconProps> = ({
+  size = 20,
+  color = '#8C7B73',
+  strokeWidth = 2,
+  style,
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+    <Path d="M9.88 9.88A3 3 0 1 0 14.12 14.12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M10.73 5.08A10.43 10.43 0 0 1 12 5C19 5 23 12 23 12A18.8 18.8 0 0 1 18.36 17.36" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M1 1L23 23" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
