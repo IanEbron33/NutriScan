@@ -14,6 +14,13 @@ import { NutritionProvider } from './src/context/NutritionContext';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { DashboardScreen } from './src/screens/DashboardScreen';
+import {
+  useFonts,
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+} from '@expo-google-fonts/fredoka';
 
 function MainApp() {
   const { user, profile, isLoading } = useAuth();
@@ -39,8 +46,23 @@ function MainApp() {
   // Main Dashboard Screen (Matching user screenshot)
   return <DashboardScreen />;
 }
-
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FF5B00" />
+        <Text style={styles.loadingText}>Loading NutriScan...</Text>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <AuthProvider>

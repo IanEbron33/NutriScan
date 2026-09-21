@@ -52,6 +52,7 @@ export const loadMealsByDate = async (userId: string, date: Date): Promise<DbMea
         fat_g: Number(item.fat_g || 0),
         micronutrients: item.micronutrients || {},
         detected_items: item.detected_items || [],
+        health_insight: item.health_insight || item.micronutrients?.health_insight,
         image_uri: item.image_uri,
         source: item.source || 'ai_scan',
         logged_at: item.logged_at,
@@ -102,6 +103,7 @@ export const syncRecentMealLogs = async (userId: string, days: number = 30): Pro
         fat_g: Number(item.fat_g || 0),
         micronutrients: item.micronutrients || {},
         detected_items: item.detected_items || [],
+        health_insight: item.health_insight || item.micronutrients?.health_insight,
         image_uri: item.image_uri,
         source: item.source || 'ai_scan',
         logged_at: item.logged_at,
@@ -133,6 +135,7 @@ export const logFoodIntake = async (
     fat_g: number;
     micronutrients?: Record<string, any>;
     detected_items?: any[];
+    health_insight?: string;
     image_uri?: string | null;
     source?: 'ai_scan' | 'manual' | 'preset';
     logged_at?: string;
@@ -140,6 +143,7 @@ export const logFoodIntake = async (
 ): Promise<DbMealLog> => {
   const localId = `local_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const nowIso = meal.logged_at || new Date().toISOString();
+  const healthInsight = meal.health_insight || meal.micronutrients?.health_insight;
 
   const localEntry: DbMealLog = {
     id: localId,
@@ -149,8 +153,12 @@ export const logFoodIntake = async (
     protein_g: Number(meal.protein_g || 0),
     carbs_g: Number(meal.carbs_g || 0),
     fat_g: Number(meal.fat_g || 0),
-    micronutrients: meal.micronutrients || {},
+    micronutrients: {
+      ...(meal.micronutrients || {}),
+      ...(healthInsight ? { health_insight: healthInsight } : {}),
+    },
     detected_items: meal.detected_items || [],
+    health_insight: healthInsight,
     image_uri: meal.image_uri || null,
     source: meal.source || 'ai_scan',
     logged_at: nowIso,
@@ -191,7 +199,8 @@ export const logFoodIntake = async (
         carbs_g: Number(data.carbs_g || 0),
         fat_g: Number(data.fat_g || 0),
         micronutrients: data.micronutrients || {},
-        detected_items: data.detected_items || [],
+        detected_items: data.detected_items || localEntry.detected_items || [],
+        health_insight: data.health_insight || data.micronutrients?.health_insight || localEntry.health_insight,
         image_uri: data.image_uri,
         source: data.source || 'ai_scan',
         logged_at: data.logged_at,
@@ -254,8 +263,11 @@ export const syncPendingMealLogs = async (userId: string): Promise<void> => {
             protein_g: item.protein_g,
             carbs_g: item.carbs_g,
             fat_g: item.fat_g,
-            micronutrients: item.micronutrients,
-            detected_items: item.detected_items,
+            micronutrients: {
+              ...(item.micronutrients || {}),
+              ...(item.health_insight ? { health_insight: item.health_insight } : {}),
+            },
+            detected_items: item.detected_items || [],
             image_uri: item.image_uri,
             source: item.source,
             logged_at: item.logged_at,

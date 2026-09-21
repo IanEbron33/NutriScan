@@ -344,6 +344,15 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
   const handleConfirmAddToDaily = () => {
     if (!analysisResult) return;
 
+    const mappedDetectedItems = analysisResult.detected_items?.map((item) => ({
+      name: item.name,
+      estimated_grams: parseInt(item.portion?.replace(/\D/g, '') || '0', 10) || 0,
+      calories: item.calories,
+      protein_g: item.protein_g,
+      carbs_g: item.carbs_g,
+      fat_g: item.fat_g,
+    }));
+
     addMealLog({
       dish_name: analysisResult.dish_name,
       calories: analysisResult.calories,
@@ -351,6 +360,8 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
       carbs_g: analysisResult.carbs_g,
       fat_g: analysisResult.fat_g,
       micronutrients: analysisResult.micronutrients,
+      detected_items: mappedDetectedItems,
+      health_insight: analysisResult.health_insight,
       image_uri: analysisResult.image_uri,
       source: activeMode === 'camera' ? 'ai_scan' : 'manual',
     });
@@ -829,6 +840,7 @@ export const ScannerScreen: React.FC<ScannerScreenProps> = ({ onClose }) => {
         result={analysisResult}
         onAddToDailyTracker={handleConfirmAddToDaily}
         onDismiss={handleDismissResult}
+        onRetake={handleDismissResult}
       />
 
       {/* Meal Context Note Modal (Option A) */}

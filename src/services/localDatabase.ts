@@ -27,6 +27,7 @@ const initTables = (db: SQLite.SQLiteDatabase) => {
         fat_g REAL NOT NULL DEFAULT 0,
         micronutrients TEXT,
         detected_items TEXT,
+        health_insight TEXT,
         image_uri TEXT,
         source TEXT DEFAULT 'ai_scan',
         logged_at TEXT NOT NULL,
@@ -80,7 +81,23 @@ const initTables = (db: SQLite.SQLiteDatabase) => {
         dinner_time TEXT DEFAULT '07:00 PM',
         updated_at TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS local_daily_celebrations (
+        date_str TEXT PRIMARY KEY,
+        calories INTEGER DEFAULT 0,
+        protein INTEGER DEFAULT 0,
+        carbs INTEGER DEFAULT 0,
+        fats INTEGER DEFAULT 0,
+        updated_at TEXT
+      );
     `);
+
+    // Safe migration: add health_insight column if missing in older schema versions
+    try {
+      db.execSync(`ALTER TABLE local_meal_logs ADD COLUMN health_insight TEXT;`);
+    } catch {
+      // Column already exists, safe to ignore
+    }
   } catch (error) {
     console.warn('[LocalDB] Error initializing SQLite tables:', error);
   }
@@ -165,8 +182,8 @@ export const saveLocalMeal = (meal: DbMealLog): void => {
     db.runSync(
       `INSERT OR REPLACE INTO local_meal_logs (
         id, user_id, dish_name, calories, protein_g, carbs_g, fat_g,
-        micronutrients, detected_items, image_uri, source, logged_at, created_at, sync_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        micronutrients, detected_items, health_insight, image_uri, source, logged_at, created_at, sync_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       [
         meal.id,
         meal.user_id,
@@ -177,6 +194,7 @@ export const saveLocalMeal = (meal: DbMealLog): void => {
         meal.fat_g,
         JSON.stringify(meal.micronutrients || {}),
         JSON.stringify(meal.detected_items || []),
+        meal.health_insight || meal.micronutrients?.health_insight || null,
         meal.image_uri || null,
         meal.source || 'ai_scan',
         meal.logged_at,
@@ -465,6 +483,7 @@ const mapRowToMealLog = (row: any): DbMealLog => ({
   fat_g: Number(row.fat_g || 0),
   micronutrients: typeof row.micronutrients === 'string' ? JSON.parse(row.micronutrients || '{}') : row.micronutrients || {},
   detected_items: typeof row.detected_items === 'string' ? JSON.parse(row.detected_items || '[]') : row.detected_items || [],
+  health_insight: row.health_insight || (typeof row.micronutrients === 'string' ? JSON.parse(row.micronutrients || '{}')?.health_insight : row.micronutrients?.health_insight) || undefined,
   image_uri: row.image_uri,
   source: row.source || 'ai_scan',
   logged_at: row.logged_at,
@@ -636,5 +655,84 @@ export const saveLocalAppSettings = (settings: Partial<LocalAppSettings>): void 
     console.warn('[LocalDB] Error saving local app settings:', error);
   }
 };
+
+/**
+ * Helper to get local date string YYYY-MM-DD
+ */
+export const getTodayDateString = (date: Date = new Date()): string => {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
+export interface CelebratedTargetsRecord {
+  calories: boolean;
+  protein: boolean;
+  carbs: boolean;
+  fats: boolean;
+}
+
+/**
+ * Retrieves the celebrated targets for a given calendar date (YYYY-MM-DD)
+ */
+export const getCelebratedTargets = (dateStr: string = getTodayDateString()): CelebratedTargetsRecord => {
+  try {
+    const db = getDb();
+    const row = db.getFirstSync<any>(
+      `SELECT calories, protein, carbs, fats FROM local_daily_celebrations WHERE date_str = ?;`,
+      [dateStr]
+    );
+
+    if (row) {
+      return {
+        calories: row.calories === 1,
+        protein: row.protein === 1,
+        carbs: row.carbs === 1,
+        fats: row.fats === 1,
+      };
+    }
+  } catch (err) {
+    console.warn('[LocalDB] Error fetching celebrated targets:', err);
+  }
+
+  return {
+    calories: false,
+    protein: false,
+    carbs: false,
+    fats: false,
+  };
+};
+
+/**
+ * Marks a target as celebrated for a given calendar date (YYYY-MM-DD)
+ */
+export const markTargetCelebrated = (
+  dateStr: string = getTodayDateString(),
+  target: 'calories' | 'protein' | 'carbs' | 'fats'
+): void => {
+  try {
+    const db = getDb();
+    const current = getCelebratedTargets(dateStr);
+    current[target] = true;
+
+    db.runSync(
+      `INSERT OR REPLACE INTO local_daily_celebrations (
+        date_str, calories, protein, carbs, fats, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?);`,
+      [
+        dateStr,
+        current.calories ? 1 : 0,
+        current.protein ? 1 : 0,
+        current.carbs ? 1 : 0,
+        current.fats ? 1 : 0,
+        new Date().toISOString(),
+      ]
+    );
+  } catch (err) {
+    console.warn('[LocalDB] Error marking target celebrated:', err);
+  }
+};
+
 
 

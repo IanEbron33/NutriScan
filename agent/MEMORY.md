@@ -10,10 +10,11 @@
 - **Design Tokens**: Warm Orange (`#FF5B00`), Cream Canvas (`#FAF6F0`), Chocolate Text (`#2A1810`), Typography in Fredoka bold/semi-bold, 100% Lucide vector SVGs (zero emojis).
 
 ## 2. Authentication & Supabase Configuration
-- **Supabase URL**: Configured in `.env` (`EXPO_PUBLIC_SUPABASE_URL`)
-- **Google Cloud Platform OAuth**:
-  - **Android Client ID**: Configured in `.env` (`EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID`)
-  - **Web Client ID**: Configured in `.env` (`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`)
+- **Central Configuration (`src/config/appConfig.ts`)**:
+  - `SUPABASE_URL`: `https://zymgghmrsqbplxydxepf.supabase.co`
+  - `SUPABASE_ANON_KEY`: Safe public anon key with hardware-backed chunked SecureStore storage adapter.
+  - `GOOGLE_WEB_CLIENT_ID`: `654804823627-0eu3kmdsja07sjhp5g3e5ks81elg0bt8.apps.googleusercontent.com`
+  - `GEMINI_API_KEY`: Loaded dynamically from `process.env.EXPO_PUBLIC_GEMINI_API_KEY` (stored securely in Expo Cloud Environment Variables) with zero raw keys exposed in Git.
 - **Triple-Layer Onboarding Persistence**:
   1. `supabase.auth.updateUser` (Cloud User Metadata - permanent across all devices).
   2. `expo-secure-store` (Local encrypted hardware cache - instant offline verification).
@@ -21,7 +22,7 @@
 
 ## 3. AI Food Scanner & Vision Engine
 - **Vision Engine**: Google Gemini Flash-Lite Vision API (`gemini-3.5-flash-lite` / `gemini-2.0-flash`).
-- **API Key**: Configured in `.env` (`EXPO_PUBLIC_GEMINI_API_KEY` & `GEMINI_API_KEY`).
+- **API Key Management**: Loaded via `APP_CONFIG.GEMINI_API_KEY` through EAS Environment Variables.
 - **Supabase Edge Function**: `supabase/functions/scan-food/index.ts` with latency benchmark timer.
 - **Embedded Viewfinder**: Expo SDK 54 `CameraView` with real-time 60fps in-app preview, torch/flash toggle, transparent reticle frame, and direct in-app snapshot capture (`takePictureAsync`).
 - **Client-Side Image Optimization**: `expo-image-manipulator` resizes photos to max 1080p with 70% JPEG compression before upload, cutting payload sizes by ~80% for sub-second responses.
@@ -80,6 +81,8 @@
   - **Custom NutriScan Dialogs (`CustomConfirmModal.tsx`)**: Warm confirmation dialogs replacing OS alert popups for meal deletion, resetting intake, and signing out.
 - **Phase 6 (Standalone APK Preparation & Native Audio Integration)**:
   - Full codebase audit: 100% zero default alert dialogs, zero emoji icons (all Lucide vectors), clean Metro transform AST, and complete EAS `preview` APK profile (`"buildType": "apk"`).
+  - **Secure GitHub Workflow & Central Config (`src/config/appConfig.ts`)**: Removed raw API keys from git-tracked files, relying on EAS cloud environment variables and central fallback store.
+  - **Custom `.easignore`**: Configured build archive rules to preserve necessary build files.
 
 ## 7. Next Recommended Milestones
 - **Phase 7**: Barcode & Nutrition Label UPC scanner.

@@ -25,8 +25,14 @@ import { ProfileTab } from '../components/tabs/ProfileTab';
 import { MealDetailsModal } from '../components/modals/MealDetailsModal';
 import { MealReminderAlertModal } from '../components/modals/MealReminderAlertModal';
 import { MicronutrientsDetailsModal } from '../components/modals/MicronutrientsDetailsModal';
-import { getLocalAppSettings } from '../services/localDatabase';
-import { playBellSound } from '../services/notificationService';
+import {
+  getLocalAppSettings,
+  getTodayDateString,
+  getCelebratedTargets,
+  markTargetCelebrated,
+} from '../services/localDatabase';
+import { playBellSound, playTargetHitCelebration } from '../services/notificationService';
+import { TargetHitToast } from '../components/ui/TargetHitToast';
 import { DbMealLog } from '../types/database';
 import {
   UtensilsCrossed,
@@ -46,6 +52,7 @@ import {
   Sparkles,
   Clock,
   ChevronRight,
+  Check,
 } from '../components/ui/LucideIcons';
 
 const { width } = Dimensions.get('window');
@@ -76,6 +83,7 @@ export const DashboardScreen: React.FC = () => {
     loggedMeals,
     deleteMeal,
     streakDays: dynamicStreakDays,
+    isLoading: isNutritionLoading,
   } = useNutrition();
 
   const [activeTab, setActiveTab] = useState<'home' | 'diary' | 'coach' | 'profile'>('home');
@@ -92,6 +100,32 @@ export const DashboardScreen: React.FC = () => {
     timeString: string;
   } | null>(null);
   const lastTriggeredReminder = useRef<{ key: string; timestamp: number } | null>(null);
+
+  // Celebratory Target Hit Toast State
+  const [targetToast, setTargetToast] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
+
+  // Track previous metrics to fire celebratory haptic & toast ONLY when crossing threshold
+  const prevMetrics = useRef<{
+    initialized: boolean;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }>({
+    initialized: false,
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+  });
 
   // Active in-app timer: checks scheduled reminder times every 15s
   useEffect(() => {
@@ -190,6 +224,135 @@ export const DashboardScreen: React.FC = () => {
   const fatConsumed = todayFat;
 
   const firstName = profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Alex';
+
+  // Target Hit States for Daily Macros & Calories
+  const isCaloriesHit = caloriesConsumed >= calorieTarget && calorieTarget > 0;
+  const isProteinHit = proteinConsumed >= proteinTarget && proteinTarget > 0;
+  const isCarbsHit = carbsConsumed >= carbsTarget && carbsTarget > 0;
+  const isFatHit = fatConsumed >= fatTarget && fatTarget > 0;
+
+  // Detect newly hit goals -> trigger celebratory haptic vibration + bell chime + toast
+  useEffect(() => {
+    if (isNutritionLoading) {
+      // Avoid evaluating celebrations while daily totals are still hydrating from DB
+      return;
+    }
+
+    const todayStr = getTodayDateString();
+    const alreadyCelebrated = getCelebratedTargets(todayStr);
+
+    if (!prevMetrics.current.initialized) {
+      // First hydration after launch: record any targets already met before opening the app
+      // so they are marked as celebrated in DB and will never falsely trigger a celebration on startup
+      if (caloriesConsumed >= calorieTarget && calorieTarget > 0 && !alreadyCelebrated.calories) {
+        markTargetCelebrated(todayStr, 'calories');
+      }
+      if (proteinConsumed >= proteinTarget && proteinTarget > 0 && !alreadyCelebrated.protein) {
+        markTargetCelebrated(todayStr, 'protein');
+      }
+      if (carbsConsumed >= carbsTarget && carbsTarget > 0 && !alreadyCelebrated.carbs) {
+        markTargetCelebrated(todayStr, 'carbs');
+      }
+      if (fatConsumed >= fatTarget && fatTarget > 0 && !alreadyCelebrated.fats) {
+        markTargetCelebrated(todayStr, 'fats');
+      }
+
+      prevMetrics.current = {
+        initialized: true,
+        calories: caloriesConsumed,
+        protein: proteinConsumed,
+        carbs: carbsConsumed,
+        fat: fatConsumed,
+      };
+      return;
+    }
+
+    // Now evaluate only newly crossed thresholds during active usage that haven't been celebrated today
+    const newlyHit: string[] = [];
+
+    if (
+      prevMetrics.current.calories < calorieTarget &&
+      caloriesConsumed >= calorieTarget &&
+      calorieTarget > 0 &&
+      !alreadyCelebrated.calories
+    ) {
+      newlyHit.push('Calories');
+      markTargetCelebrated(todayStr, 'calories');
+    }
+    if (
+      prevMetrics.current.protein < proteinTarget &&
+      proteinConsumed >= proteinTarget &&
+      proteinTarget > 0 &&
+      !alreadyCelebrated.protein
+    ) {
+      newlyHit.push('Protein');
+      markTargetCelebrated(todayStr, 'protein');
+    }
+    if (
+      prevMetrics.current.carbs < carbsTarget &&
+      carbsConsumed >= carbsTarget &&
+      carbsTarget > 0 &&
+      !alreadyCelebrated.carbs
+    ) {
+      newlyHit.push('Carbs');
+      markTargetCelebrated(todayStr, 'carbs');
+    }
+    if (
+      prevMetrics.current.fat < fatTarget &&
+      fatConsumed >= fatTarget &&
+      fatTarget > 0 &&
+      !alreadyCelebrated.fats
+    ) {
+      newlyHit.push('Fats');
+      markTargetCelebrated(todayStr, 'fats');
+    }
+
+    // Advance baseline
+    prevMetrics.current = {
+      initialized: true,
+      calories: caloriesConsumed,
+      protein: proteinConsumed,
+      carbs: carbsConsumed,
+      fat: fatConsumed,
+    };
+
+    if (newlyHit.length > 0) {
+      // 1. Play combined upbeat celebratory haptic vibration + bell chime
+      playTargetHitCelebration();
+
+      // 2. Display celebratory floating toast
+      if (newlyHit.length === 1) {
+        const item = newlyHit[0];
+        let detail = '';
+        if (item === 'Calories') detail = `${caloriesConsumed.toLocaleString()} / ${calorieTarget.toLocaleString()} kcal`;
+        else if (item === 'Protein') detail = `${proteinConsumed}g / ${proteinTarget}g`;
+        else if (item === 'Carbs') detail = `${carbsConsumed}g / ${carbsTarget}g`;
+        else if (item === 'Fats') detail = `${fatConsumed}g / ${fatTarget}g`;
+
+        setTargetToast({
+          visible: true,
+          title: `${item} Hit!`,
+          message: detail,
+        });
+      } else {
+        setTargetToast({
+          visible: true,
+          title: `${newlyHit.join(' & ')} Hit!`,
+          message: `${newlyHit.length} daily goals reached`,
+        });
+      }
+    }
+  }, [
+    isNutritionLoading,
+    caloriesConsumed,
+    calorieTarget,
+    proteinConsumed,
+    proteinTarget,
+    carbsConsumed,
+    carbsTarget,
+    fatConsumed,
+    fatTarget,
+  ]);
 
   useEffect(() => {
     // Staggered smooth entrance and updates animation
@@ -306,7 +469,7 @@ export const DashboardScreen: React.FC = () => {
                     cx="110"
                     cy="110"
                     r={radius}
-                    stroke="#8B4513"
+                    stroke={isCaloriesHit ? '#2E7D32' : '#8B4513'}
                     strokeWidth={strokeWidth}
                     strokeDasharray={`${circumference} ${circumference}`}
                     strokeDashoffset={strokeDashoffset}
@@ -318,15 +481,24 @@ export const DashboardScreen: React.FC = () => {
 
               {/* Center Content */}
               <View style={styles.gaugeCenterContent}>
-                <Text style={styles.gaugeCalories}>
+                <Text style={[styles.gaugeCalories, isCaloriesHit && { color: '#2E7D32' }]}>
                   {caloriesConsumed.toLocaleString()}
                 </Text>
                 <Text style={styles.gaugeTarget}>
                   / {calorieTarget.toLocaleString()} kcal
                 </Text>
                 <View style={styles.statusPill}>
-                  <TrendingUp size={12} color="#2E7D32" strokeWidth={2.5} />
-                  <Text style={styles.statusPillText}> On track</Text>
+                  {isCaloriesHit ? (
+                    <>
+                      <Check size={12} color="#2E7D32" strokeWidth={3} />
+                      <Text style={styles.statusPillText}>Target hit</Text>
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp size={12} color="#2E7D32" strokeWidth={2.5} />
+                      <Text style={styles.statusPillText}>On track</Text>
+                    </>
+                  )}
                 </View>
               </View>
             </View>
@@ -342,11 +514,16 @@ export const DashboardScreen: React.FC = () => {
             {/* Protein Row */}
             <View style={styles.macroRow}>
               <View style={styles.macroLabelRow}>
-                <View style={[styles.macroDot, { backgroundColor: '#E54D42' }]} />
-                <Text style={styles.macroName}>Protein</Text>
+                <View style={[styles.macroDot, { backgroundColor: isProteinHit ? '#2E7D32' : '#E54D42' }]} />
+                <Text style={[styles.macroName, isProteinHit && { color: '#2E7D32' }]}>Protein</Text>
+                {isProteinHit && (
+                  <View style={styles.macroHitBadge}>
+                    <Check size={11} color="#2E7D32" strokeWidth={3} />
+                  </View>
+                )}
               </View>
               <Text style={styles.macroNumbers}>
-                <Text style={styles.macroBold}>{proteinConsumed}g</Text> / {proteinTarget}g
+                <Text style={[styles.macroBold, isProteinHit && { color: '#2E7D32' }]}>{proteinConsumed}g</Text> / {proteinTarget}g
               </Text>
             </View>
             <View style={styles.barTrack}>
@@ -354,7 +531,7 @@ export const DashboardScreen: React.FC = () => {
                 style={[
                   styles.barFill,
                   {
-                    backgroundColor: '#E54D42',
+                    backgroundColor: isProteinHit ? '#2E7D32' : '#E54D42',
                     width: macroFillAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: ['0%', `${Math.min(100, Math.round((proteinConsumed / proteinTarget) * 100))}%`],
@@ -367,11 +544,16 @@ export const DashboardScreen: React.FC = () => {
             {/* Carbs Row */}
             <View style={[styles.macroRow, { marginTop: 14 }]}>
               <View style={styles.macroLabelRow}>
-                <View style={[styles.macroDot, { backgroundColor: '#F39C12' }]} />
-                <Text style={styles.macroName}>Carbs</Text>
+                <View style={[styles.macroDot, { backgroundColor: isCarbsHit ? '#2E7D32' : '#F39C12' }]} />
+                <Text style={[styles.macroName, isCarbsHit && { color: '#2E7D32' }]}>Carbs</Text>
+                {isCarbsHit && (
+                  <View style={styles.macroHitBadge}>
+                    <Check size={11} color="#2E7D32" strokeWidth={3} />
+                  </View>
+                )}
               </View>
               <Text style={styles.macroNumbers}>
-                <Text style={styles.macroBold}>{carbsConsumed}g</Text> / {carbsTarget}g
+                <Text style={[styles.macroBold, isCarbsHit && { color: '#2E7D32' }]}>{carbsConsumed}g</Text> / {carbsTarget}g
               </Text>
             </View>
             <View style={styles.barTrack}>
@@ -379,7 +561,7 @@ export const DashboardScreen: React.FC = () => {
                 style={[
                   styles.barFill,
                   {
-                    backgroundColor: '#F39C12',
+                    backgroundColor: isCarbsHit ? '#2E7D32' : '#F39C12',
                     width: macroFillAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: ['0%', `${Math.min(100, Math.round((carbsConsumed / carbsTarget) * 100))}%`],
@@ -392,11 +574,16 @@ export const DashboardScreen: React.FC = () => {
             {/* Fats Row */}
             <View style={[styles.macroRow, { marginTop: 14 }]}>
               <View style={styles.macroLabelRow}>
-                <View style={[styles.macroDot, { backgroundColor: '#8B5A2B' }]} />
-                <Text style={styles.macroName}>Fats</Text>
+                <View style={[styles.macroDot, { backgroundColor: isFatHit ? '#2E7D32' : '#8B5A2B' }]} />
+                <Text style={[styles.macroName, isFatHit && { color: '#2E7D32' }]}>Fats</Text>
+                {isFatHit && (
+                  <View style={styles.macroHitBadge}>
+                    <Check size={11} color="#2E7D32" strokeWidth={3} />
+                  </View>
+                )}
               </View>
               <Text style={styles.macroNumbers}>
-                <Text style={styles.macroBold}>{fatConsumed}g</Text> / {fatTarget}g
+                <Text style={[styles.macroBold, isFatHit && { color: '#2E7D32' }]}>{fatConsumed}g</Text> / {fatTarget}g
               </Text>
             </View>
             <View style={styles.barTrack}>
@@ -404,7 +591,7 @@ export const DashboardScreen: React.FC = () => {
                 style={[
                   styles.barFill,
                   {
-                    backgroundColor: '#8B5A2B',
+                    backgroundColor: isFatHit ? '#2E7D32' : '#8B5A2B',
                     width: macroFillAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: ['0%', `${Math.min(100, Math.round((fatConsumed / fatTarget) * 100))}%`],
@@ -770,6 +957,14 @@ export const DashboardScreen: React.FC = () => {
           </View>
         </View>
       )}
+
+      {/* Celebratory Target Hit Floating Toast Banner */}
+      <TargetHitToast
+        visible={targetToast.visible}
+        title={targetToast.title}
+        message={targetToast.message}
+        onDismiss={() => setTargetToast((prev) => ({ ...prev, visible: false }))}
+      />
     </SafeAreaView>
   );
 };
@@ -1019,6 +1214,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#2A1810',
+  },
+  macroHitBadge: {
+    width: 17,
+    height: 17,
+    borderRadius: 8.5,
+    backgroundColor: '#E8F5E9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   macroNumbers: {
     fontSize: 13,

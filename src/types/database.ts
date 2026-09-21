@@ -29,6 +29,7 @@ export interface MicronutrientsData {
   iron_mg?: number;
   calcium_mg?: number;
   fiber_g?: number;
+  health_insight?: string;
 }
 
 export interface DetectedFoodItem {
@@ -52,6 +53,7 @@ export interface DbMealLog {
   fat_g: number;
   micronutrients: MicronutrientsData;
   detected_items?: DetectedFoodItem[];
+  health_insight?: string;
   image_uri?: string | null;
   source: 'ai_scan' | 'manual' | 'preset';
   logged_at: string;

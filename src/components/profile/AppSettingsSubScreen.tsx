@@ -17,7 +17,14 @@ import {
   X,
   Check,
   Sliders,
+  Bell,
+  AlertCircle,
 } from '../ui/LucideIcons';
+import {
+  checkNotificationPermissions,
+  requestNotificationPermissions,
+  sendTestNotification,
+} from '../../services/notificationService';
 
 interface AppSettingsSubScreenProps {
   unitSystem: 'metric' | 'imperial';
@@ -66,6 +73,55 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
   const [tempHour, setTempHour] = useState('08');
   const [tempMinute, setTempMinute] = useState('30');
   const [tempAmPm, setTempAmPm] = useState<'AM' | 'PM'>('AM');
+
+  // Notification Permissions & Immediate Test State
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testSentMessage, setTestSentMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkPermissionStatus();
+  }, []);
+
+  const checkPermissionStatus = async () => {
+    const granted = await checkNotificationPermissions();
+    setHasPermission(granted);
+  };
+
+  const handleRequestPermission = async () => {
+    const granted = await requestNotificationPermissions();
+    setHasPermission(granted);
+    return granted;
+  };
+
+  const handleToggleMeal = async (
+    val: boolean,
+    handler: (v: boolean) => void
+  ) => {
+    if (val && !hasPermission) {
+      await handleRequestPermission();
+    }
+    handler(val);
+  };
+
+  const handleSendTest = async () => {
+    setIsSendingTest(true);
+    setTestSentMessage(null);
+    try {
+      const success = await sendTestNotification();
+      if (success) {
+        setHasPermission(true);
+        setTestSentMessage('Sample alert sent! Check your notification bar.');
+      } else {
+        setTestSentMessage('Permission needed to show notifications.');
+      }
+    } catch {
+      setTestSentMessage('Error triggering sample alert.');
+    } finally {
+      setIsSendingTest(false);
+      setTimeout(() => setTestSentMessage(null), 4000);
+    }
+  };
 
   const hourListRef = useRef<FlatList<string>>(null);
   const minuteListRef = useRef<FlatList<string>>(null);
@@ -207,6 +263,29 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
         {/* 2. Meal Reminder Notifications */}
         <View style={styles.sectionBlock}>
           <Text style={styles.sectionLabel}>MEAL REMINDER NOTIFICATIONS</Text>
+
+          {/* OS Permission Prompt Banner if disabled */}
+          {hasPermission === false && (
+            <View style={styles.permissionWarningCard}>
+              <View style={styles.permissionWarningIcon}>
+                <AlertCircle size={18} color="#D32F2F" />
+              </View>
+              <View style={styles.permissionWarningTextCol}>
+                <Text style={styles.permissionWarningTitle}>Notifications Permission Needed</Text>
+                <Text style={styles.permissionWarningBody}>
+                  Enable notification permission so NutriScan can alert you on this device when it's meal time.
+                </Text>
+                <TouchableOpacity
+                  style={styles.permissionGrantBtn}
+                  onPress={handleRequestPermission}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.permissionGrantBtnText}>Allow Notifications</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <View style={styles.cardContainer}>
             {/* Breakfast Reminder */}
             <View style={styles.reminderRow}>
@@ -223,7 +302,7 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
               </TouchableOpacity>
               <Switch
                 value={breakfastEnabled}
-                onValueChange={onBreakfastEnabledChange}
+                onValueChange={(val) => handleToggleMeal(val, onBreakfastEnabledChange)}
                 trackColor={{ false: '#EFE7DF', true: '#FF5B00' }}
                 thumbColor="#FFFFFF"
               />
@@ -246,7 +325,7 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
               </TouchableOpacity>
               <Switch
                 value={lunchEnabled}
-                onValueChange={onLunchEnabledChange}
+                onValueChange={(val) => handleToggleMeal(val, onLunchEnabledChange)}
                 trackColor={{ false: '#EFE7DF', true: '#FF5B00' }}
                 thumbColor="#FFFFFF"
               />
@@ -269,11 +348,36 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
               </TouchableOpacity>
               <Switch
                 value={dinnerEnabled}
-                onValueChange={onDinnerEnabledChange}
+                onValueChange={(val) => handleToggleMeal(val, onDinnerEnabledChange)}
                 trackColor={{ false: '#EFE7DF', true: '#FF5B00' }}
                 thumbColor="#FFFFFF"
               />
             </View>
+
+            <View style={styles.itemDivider} />
+
+            {/* Send Test Notification Action */}
+            <TouchableOpacity
+              style={styles.testNotificationRow}
+              onPress={handleSendTest}
+              disabled={isSendingTest}
+              activeOpacity={0.75}
+            >
+              <View style={styles.testIconBox}>
+                <Bell size={15} color="#FF5B00" strokeWidth={2.2} />
+              </View>
+              <View style={styles.testTextCol}>
+                <Text style={styles.testTitle}>Send Test Reminder</Text>
+                <Text style={styles.testSubtitle}>
+                  {testSentMessage || 'Tap to test device sound, vibration & banner'}
+                </Text>
+              </View>
+              <View style={styles.testButtonBadge}>
+                <Text style={styles.testButtonBadgeText}>
+                  {isSendingTest ? 'Sending...' : 'Test'}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -682,5 +786,92 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13.5,
     fontWeight: '700',
+  },
+  permissionWarningCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF5F5',
+    borderRadius: 16,
+    borderWidth: 1.2,
+    borderColor: '#FFD6D6',
+    padding: 14,
+    marginBottom: 12,
+    gap: 12,
+  },
+  permissionWarningIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFEAEA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  permissionWarningTextCol: {
+    flex: 1,
+  },
+  permissionWarningTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#D32F2F',
+    marginBottom: 3,
+  },
+  permissionWarningBody: {
+    fontSize: 11.5,
+    color: '#7D5A5A',
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  permissionGrantBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#D32F2F',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  permissionGrantBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  testNotificationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  testIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: '#FFF0E6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  testTextCol: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  testTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2A1810',
+  },
+  testSubtitle: {
+    fontSize: 11,
+    color: '#8C7B73',
+    marginTop: 1,
+  },
+  testButtonBadge: {
+    backgroundColor: '#FFF0E6',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFD4BF',
+  },
+  testButtonBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FF5B00',
   },
 });

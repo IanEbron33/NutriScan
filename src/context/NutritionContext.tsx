@@ -21,6 +21,7 @@ export interface MealLog {
   fat_g: number;
   micronutrients?: MicronutrientsData;
   detected_items?: DetectedFoodItem[];
+  health_insight?: string;
   image_uri?: string | null;
   logged_at: string;
   source: 'ai_scan' | 'manual' | 'preset';
@@ -113,6 +114,8 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       carbs_g: m.carbs_g,
       fat_g: m.fat_g,
       micronutrients: m.micronutrients,
+      detected_items: m.detected_items || [],
+      health_insight: m.health_insight || m.micronutrients?.health_insight,
       image_uri: m.image_uri || undefined,
       logged_at: m.logged_at,
       source: m.source,
@@ -172,6 +175,8 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const optimisticMeal: MealLog = {
       ...newMeal,
       id: tempId,
+      detected_items: newMeal.detected_items || [],
+      health_insight: newMeal.health_insight,
       logged_at: nowIso,
       sync_status: 'pending_insert',
     };
@@ -200,6 +205,8 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         carbs_g: newMeal.carbs_g,
         fat_g: newMeal.fat_g,
         micronutrients: newMeal.micronutrients,
+        detected_items: newMeal.detected_items,
+        health_insight: newMeal.health_insight,
         image_uri: newMeal.image_uri,
         source: newMeal.source,
         logged_at: nowIso,
@@ -213,6 +220,8 @@ export const NutritionProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 ...item,
                 id: persistedRecord.id,
                 sync_status: persistedRecord.sync_status,
+                detected_items: persistedRecord.detected_items || item.detected_items,
+                health_insight: persistedRecord.health_insight || item.health_insight,
               }
             : item
         )

@@ -6,24 +6,19 @@ let hasCheckedAudio = false;
 let cachedAudio: any = null;
 
 const getAudioModule = () => {
-  if (hasCheckedAudio) return cachedAudio;
+  if (hasCheckedAudio && cachedAudio) return cachedAudio;
   hasCheckedAudio = true;
 
   try {
-    const isAvPresent = !!(
-      NativeModules?.ExponentAV ||
-      (global as any)?.ExpoModules?.ExponentAV
-    );
-    if (!isAvPresent) {
-      return null;
-    }
     const av = require('expo-av');
-    cachedAudio = av?.Audio || null;
-    return cachedAudio;
+    if (av && av.Audio) {
+      cachedAudio = av.Audio;
+      return cachedAudio;
+    }
   } catch (err) {
-    console.warn('[NotificationService] ExponentAV native module not available:', err);
-    return null;
+    console.warn('[NotificationService] expo-av not available:', err);
   }
+  return null;
 };
 
 let mealSuccessSoundObject: any = null;
@@ -43,14 +38,23 @@ export const playBellSound = async (): Promise<void> => {
     });
 
     if (bellSoundObject) {
-      await bellSoundObject.replayAsync();
-    } else {
-      const { sound } = await Audio.Sound.createAsync(
-        require('../../assets/sounds/bell_chime.wav'),
-        { shouldPlay: true, volume: 1.0 }
-      );
-      bellSoundObject = sound;
+      try {
+        await bellSoundObject.setPositionAsync(0);
+        await bellSoundObject.playAsync();
+        return;
+      } catch {
+        try {
+          await bellSoundObject.unloadAsync();
+        } catch {}
+        bellSoundObject = null;
+      }
     }
+
+    const { sound } = await Audio.Sound.createAsync(
+      require('../../assets/sounds/bell_chime.wav'),
+      { shouldPlay: true, volume: 1.0 }
+    );
+    bellSoundObject = sound;
   } catch (error) {
     console.warn('[NotificationService] Error playing bell sound chime:', error);
   }
@@ -77,22 +81,46 @@ export const playMealSuccessSound = async (): Promise<void> => {
     });
 
     if (mealSuccessSoundObject) {
-      await mealSuccessSoundObject.replayAsync();
-    } else {
-      const { sound } = await Audio.Sound.createAsync(
-        require('../../assets/sounds/meal_success.wav'),
-        { shouldPlay: true, volume: 1.0 }
-      );
-      mealSuccessSoundObject = sound;
+      try {
+        await mealSuccessSoundObject.setPositionAsync(0);
+        await mealSuccessSoundObject.playAsync();
+        return;
+      } catch {
+        try {
+          await mealSuccessSoundObject.unloadAsync();
+        } catch {}
+        mealSuccessSoundObject = null;
+      }
     }
+
+    const { sound } = await Audio.Sound.createAsync(
+      require('../../assets/sounds/meal_success.wav'),
+      { shouldPlay: true, volume: 1.0 }
+    );
+    mealSuccessSoundObject = sound;
   } catch (error) {
     console.warn('[NotificationService] Error playing meal success sound:', error);
   }
 };
 
 /**
- * Safely checks if the native ExpoPushTokenManager binary is compiled into the current APK
- * before attempting to require expo-notifications.
+ * Celebrates hitting a daily macro or calorie goal:
+ * Combines crisp bell chime audio and upbeat double-pulse haptic vibration
+ */
+export const playTargetHitCelebration = async (): Promise<void> => {
+  // 1. Trigger upbeat rhythmic double-pulse haptic
+  try {
+    Vibration.vibrate([0, 60, 50, 90]);
+  } catch (err) {
+    console.warn('[NotificationService] Haptic vibration error:', err);
+  }
+
+  // 2. Play crisp celebratory bell chime
+  await playBellSound();
+};
+
+/**
+ * Safely loads the expo-notifications module with try/catch.
  */
 let cachedModule: typeof import('expo-notifications') | null = null;
 let hasCheckedModule = false;
@@ -105,16 +133,6 @@ export const getNotificationsModule = (): typeof import('expo-notifications') | 
   hasCheckedModule = true;
 
   try {
-    // Check if the native binary is registered in Expo's JSI/NativeModules registry
-    const isNativePresent = !!(
-      NativeModules?.ExpoPushTokenManager ||
-      (global as any)?.ExpoModules?.ExpoPushTokenManager
-    );
-
-    if (!isNativePresent) {
-      return null;
-    }
-
     const Notifications = require('expo-notifications');
     if (Notifications && typeof Notifications.setNotificationHandler === 'function') {
       Notifications.setNotificationHandler({
@@ -129,13 +147,28 @@ export const getNotificationsModule = (): typeof import('expo-notifications') | 
     cachedModule = Notifications;
     return Notifications;
   } catch (error) {
-    console.warn('[NotificationService] Native module ExpoPushTokenManager not available:', error);
+    console.warn('[NotificationService] Error loading expo-notifications:', error);
+    cachedModule = null;
     return null;
   }
 };
 
 /**
- * Initializes the Android notification channel with sound & vibration
+ * Checks current notification permission status without prompting the user
+ */
+export const checkNotificationPermissions = async (): Promise<boolean> => {
+  const Notifications = getNotificationsModule();
+  if (!Notifications) return false;
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status === 'granted';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Initializes the Android notification channel with MAX priority, sound & vibration
  */
 export const setupNotificationChannel = async (): Promise<void> => {
   const Notifications = getNotificationsModule();
@@ -146,7 +179,7 @@ export const setupNotificationChannel = async (): Promise<void> => {
       await Notifications.setNotificationChannelAsync('meal-reminders', {
         name: 'Meal Reminders',
         description: 'Daily reminders for breakfast, lunch, and dinner',
-        importance: Notifications.AndroidImportance.HIGH,
+        importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 300, 200, 300],
         sound: 'default',
         enableVibrate: true,
@@ -161,7 +194,7 @@ export const setupNotificationChannel = async (): Promise<void> => {
 };
 
 /**
- * Requests notification permissions from the OS
+ * Requests notification permissions from the OS and ensures channel is configured
  */
 export const requestNotificationPermissions = async (): Promise<boolean> => {
   const Notifications = getNotificationsModule();
@@ -272,7 +305,7 @@ export const scheduleMealReminder = async (
         title: copy.title,
         body: copy.body,
         sound: 'default',
-        priority: Notifications.AndroidNotificationPriority.HIGH,
+        priority: Notifications.AndroidNotificationPriority.MAX,
         data: { mealType, timeString },
       },
       trigger: {
@@ -345,12 +378,14 @@ export const sendTestNotification = async (): Promise<boolean> => {
       return false;
     }
 
+    await setupNotificationChannel();
+
     await Notifications.scheduleNotificationAsync({
       content: {
         title: 'NutriScan Reminder Test',
         body: 'Your notification chime and meal reminders are active!',
         sound: 'default',
-        priority: Notifications.AndroidNotificationPriority.HIGH,
+        priority: Notifications.AndroidNotificationPriority.MAX,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
