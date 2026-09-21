@@ -9,7 +9,6 @@ import {
   LogBox,
 } from 'react-native';
 
-LogBox.ignoreLogs(['[expo-av]: Expo AV has been deprecated']);
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
@@ -24,6 +23,8 @@ import {
   Fredoka_600SemiBold,
   Fredoka_700Bold,
 } from '@expo-google-fonts/fredoka';
+
+LogBox.ignoreLogs(['[expo-av]: Expo AV has been deprecated']);
 
 function MainApp() {
   const { user, profile, isLoading } = useAuth();

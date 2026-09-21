@@ -65,7 +65,8 @@
           "defaultChannel": "meal-reminders"
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font"
     ],
     "extra": {
       "eas": {

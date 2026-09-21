@@ -23,5 +23,5 @@ export const APP_CONFIG = {
   GEMINI_API_KEY:
     process.env.EXPO_PUBLIC_GEMINI_API_KEY ||
     process.env.GEMINI_API_KEY ||
-    '',
+    'AQ.Ab8RN6KQqYpdPjHt7GOX43N_q_SN-FiMhj_uteDneCIzPksy9g',
 };

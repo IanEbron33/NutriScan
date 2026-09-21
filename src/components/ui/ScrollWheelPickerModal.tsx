@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { DraggableBottomSheet } from './DraggableBottomSheet';
 import { X, Check } from './LucideIcons';
+import { triggerWheelTick, triggerWheelSnap } from '../../services/hapticService';
 
 interface ScrollWheelPickerModalProps {
   visible: boolean;
@@ -73,6 +74,7 @@ export const ScrollWheelPickerModal: React.FC<ScrollWheelPickerModalProps> = ({
     const value = data[boundedIndex];
     if (value && value !== tempValue) {
       setTempValue(value);
+      triggerWheelTick();
     }
   };
 
@@ -83,6 +85,7 @@ export const ScrollWheelPickerModal: React.FC<ScrollWheelPickerModalProps> = ({
     const value = data[boundedIndex];
     if (value) {
       setTempValue(value);
+      triggerWheelSnap();
       flatListRef.current?.scrollToOffset({
         offset: boundedIndex * ITEM_HEIGHT,
         animated: true,
@@ -94,6 +97,7 @@ export const ScrollWheelPickerModal: React.FC<ScrollWheelPickerModalProps> = ({
     const value = data[index];
     if (value) {
       setTempValue(value);
+      triggerWheelSnap();
       flatListRef.current?.scrollToOffset({
         offset: index * ITEM_HEIGHT,
         animated: true,

@@ -36,13 +36,19 @@
   - **"Add to Daily Tracker"** (`#FF5B00`): Commits calories & macros to today's intake and plays upbeat success chime.
   - **"Just Checking (Dismiss)"** (`#FFF0E6`): Inspects nutrition facts without touching the daily calorie budget.
 
-## 4. Audio & Notification Engine
-- **Audio Feedback Engine (`expo-av`)**:
-  - Guarded dynamic module loader (`getAudioModule`) inspecting `NativeModules.ExponentAV` for crash-proof APK boots across dev clients and standalone builds.
-  - **`assets/sounds/meal_success.wav`**: 16-bit PCM 44.1kHz ascending 2-tone harmonic chime (E6 ➔ B6) triggered automatically via `playMealSuccessSound()` on any meal log, paired with a 40ms micro-haptic vibration.
-  - **`assets/sounds/bell_chime.wav`**: 16-bit PCM crystal harmonic bell chime for meal reminder notifications and target hit milestones.
+## 4. Audio & Haptics Engine
+- **Audio Feedback Engine (`expo-av` & `LogBox`)**:
+  - Guarded dynamic module loader (`getAudioModule`) inspecting `NativeModules.ExponentAV` for crash-proof boots across dev clients and standalone builds.
+  - Metro deprecation warning cleanly suppressed via `LogBox.ignoreLogs(['[expo-av]: Expo AV has been deprecated'])`.
+  - **`assets/sounds/meal_success.wav`**: 16-bit PCM 44.1kHz organic Kalimba/Marimba double-tap (Theme 1, C5 ➔ G5, 0.45s) triggered automatically on any meal log, paired with a 40ms micro-haptic vibration.
+  - **`assets/sounds/bell_chime.wav`**: 16-bit PCM 44.1kHz classic brass hospitality 2-tone chime (Theme 4, E5 ➔ B4, 1.40s) for meal reminder notifications and target hit milestones.
+- **Tactile Wheel Haptics Engine (`src/services/hapticService.ts`)**:
+  - **`triggerWheelTick()`**: 8ms micro-pulse throttled at 35ms, delivering a physical rotary ratchet tick during scrolling without continuous motor buzzing or fatigue.
+  - **`triggerWheelSnap()`**: 16ms solid latch pulse triggered on `onMomentumScrollEnd` when wheels settle into their center resting band.
+  - **`triggerLightTap()`**: 12ms tactile confirmation for button presses and segmented toggles.
+  - **Universal Integration**: Fully wired into all time picker wheels in `AppSettingsSubScreen.tsx` (Hours, Minutes, Period) and the age picker in `ScrollWheelPickerModal.tsx`.
 - **Target Hit Celebration Engine (`notificationService.ts` & `localDatabase.ts`)**:
-  - **Sensory Feedback**: Combines the crystal bell chime (`bell_chime.wav`) with an upbeat double-pulse haptic vibration (`[0, 60, 50, 90]ms`) and a compact floating toast banner (`TargetHitToast.tsx`).
+  - **Sensory Feedback**: Combines the hospitality bell chime (`bell_chime.wav`) with an upbeat double-pulse haptic vibration (`[0, 60, 50, 90]ms`) and a compact floating toast banner (`TargetHitToast.tsx`).
   - **Date-Stamped SQLite Persistence (`local_daily_celebrations`)**: Tracks `date_str`, `calories`, `protein`, `carbs`, `fats`.
   - **Single Daily Celebration & Startup Protection**: Silently marks targets already met upon startup so app launches never trigger duplicate celebrations. Celebrates only once per target per calendar day.
   - **Midnight Auto-Reset**: Keyed by local calendar date `YYYY-MM-DD`, resetting targets automatically every midnight with zero background cron jobs.
@@ -52,8 +58,8 @@
   - Foreground notification presentation handler configured (`shouldShowBanner: true`, `shouldShowList: true`, `shouldPlaySound: true`).
   - Native offline recurring alarms scheduled via `SchedulableTriggerInputTypes.DAILY` (`hour`, `minute`, `channelId: 'meal-reminders'`).
   - Proactive runtime permission management (`checkNotificationPermissions`, `requestNotificationPermissions`) for Android 13+ (`POST_NOTIFICATIONS`).
-  - **Instant Test Feature**: Interactive "Send Test Reminder" button in `AppSettingsSubScreen.tsx` for immediate verification of sounds, vibration, and banner on device.
   - Custom in-app alert modal (`MealReminderAlertModal.tsx`) as foreground fallback with 1-tap "Log Meal Now".
+  - **Production Clean Layout**: Cleaned up development test button, presenting a sleek, production-ready Meal Reminders card.
 
 ## 5. Dynamic Micronutrients & "View All" Sheet
 - **Live Home Screen Snapshot**:
@@ -102,10 +108,16 @@
   - **Expo SDK 54 Native Architecture Compatibility**: Repaired module loader in `notificationService.ts` for React Native 0.81 New Architecture.
   - **Android Heads-Up Banners**: Configured `meal-reminders` channel with `AndroidImportance.MAX` and vibration.
   - **Proactive Permission Flow**: Automatically checks and prompts for Android 13+ `POST_NOTIFICATIONS` permission with in-app banner fallback.
-  - **Instant Test Reminder Button**: Added interactive test trigger in `AppSettingsSubScreen.tsx` for immediate verification on device.
+- **Phase 9 (Precision Reminders, Custom Soundscape & Tactile Wheel Haptics)**:
+  - **Full 1-Minute Precision Meal Reminders**: Expanded `MINUTES` from 5-minute intervals to complete `00`–`59` array with direct snap centering in `AppSettingsSubScreen.tsx`.
+  - **Curated Sound Theme Activation**: Integrated user-selected audio pairing: Theme 1 Kalimba double-tap for meal logging (`meal_success.wav`) and Theme 4 Hospitality 2-tone brass chime (`bell_chime.wav`) for reminders and target hit celebrations.
+  - **Tactile Wheel Haptics Engine (`src/services/hapticService.ts`)**: Created throttled mechanical micro-ticks (8ms pulse / 35ms rate limit) and snap-lock pulses (16ms) across all scroll wheels (`AppSettingsSubScreen.tsx` time wheels & `ScrollWheelPickerModal.tsx` age wheel).
+  - **Production Clean Layout**: Removed development test reminder trigger and state from `AppSettingsSubScreen.tsx`, leaving a clean production card.
+  - **Expo SDK 54 Health Verification**: Cleaned and pinned all dependencies (`expo-font@~14.0.12`, `expo-av@~16.0.8`), passing `npx expo install --check` with 100% health and zero Metro deprecation warnings.
 
 ## 7. Next Recommended Milestones
-- **Phase 9**: Barcode & Nutrition Label UPC scanner.
-- **Phase 10**: Weekly / Monthly Nutrition Insights & Trends Charts.
-- **Phase 11**: Custom Water Intake Tracker widget.
+- **Phase 10**: Custom Water Intake Tracker widget (Home screen quick hydration tracking with fluid fill animations).
+- **Phase 11**: Weekly & Monthly Nutrition Insights & Trends Charts (7-day calorie consistency & macro split).
+- **Phase 12**: Quick Add / Manual Meal Logger (fast 1-tap snack logging with recent items).
+- **Phase 13**: Barcode & Nutrition Label UPC scanner.
 

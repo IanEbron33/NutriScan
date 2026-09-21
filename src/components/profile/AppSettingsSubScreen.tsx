@@ -17,14 +17,17 @@ import {
   X,
   Check,
   Sliders,
-  Bell,
   AlertCircle,
 } from '../ui/LucideIcons';
 import {
   checkNotificationPermissions,
   requestNotificationPermissions,
-  sendTestNotification,
 } from '../../services/notificationService';
+import {
+  triggerWheelTick,
+  triggerWheelSnap,
+  triggerLightTap,
+} from '../../services/hapticService';
 
 interface AppSettingsSubScreenProps {
   unitSystem: 'metric' | 'imperial';
@@ -74,10 +77,8 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
   const [tempMinute, setTempMinute] = useState('30');
   const [tempAmPm, setTempAmPm] = useState<'AM' | 'PM'>('AM');
 
-  // Notification Permissions & Immediate Test State
+  // Notification Permissions State
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [isSendingTest, setIsSendingTest] = useState(false);
-  const [testSentMessage, setTestSentMessage] = useState<string | null>(null);
 
   useEffect(() => {
     checkPermissionStatus();
@@ -102,25 +103,6 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
       await handleRequestPermission();
     }
     handler(val);
-  };
-
-  const handleSendTest = async () => {
-    setIsSendingTest(true);
-    setTestSentMessage(null);
-    try {
-      const success = await sendTestNotification();
-      if (success) {
-        setHasPermission(true);
-        setTestSentMessage('Sample alert sent! Check your notification bar.');
-      } else {
-        setTestSentMessage('Permission needed to show notifications.');
-      }
-    } catch {
-      setTestSentMessage('Error triggering sample alert.');
-    } finally {
-      setIsSendingTest(false);
-      setTimeout(() => setTestSentMessage(null), 4000);
-    }
   };
 
   const hourListRef = useRef<FlatList<string>>(null);
@@ -174,7 +156,13 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
     const val = HOURS[bounded];
     if (val && val !== tempHour) {
       setTempHour(val);
+      triggerWheelTick();
     }
+  };
+
+  const handleHourSnap = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    handleHourScroll(event);
+    triggerWheelSnap();
   };
 
   const handleMinuteScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -184,7 +172,13 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
     const val = MINUTES[bounded];
     if (val && val !== tempMinute) {
       setTempMinute(val);
+      triggerWheelTick();
     }
+  };
+
+  const handleMinuteSnap = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    handleMinuteScroll(event);
+    triggerWheelSnap();
   };
 
   const handlePeriodScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -194,10 +188,17 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
     const val = PERIODS[bounded] as 'AM' | 'PM';
     if (val && val !== tempAmPm) {
       setTempAmPm(val);
+      triggerWheelTick();
     }
   };
 
+  const handlePeriodSnap = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    handlePeriodScroll(event);
+    triggerWheelSnap();
+  };
+
   const saveCustomTime = () => {
+    triggerLightTap();
     const formatted = `${tempHour.padStart(2, '0')}:${tempMinute.padStart(2, '0')} ${tempAmPm}`;
     if (editingMealType === 'breakfast') onBreakfastTimeChange(formatted);
     if (editingMealType === 'lunch') onLunchTimeChange(formatted);
@@ -352,31 +353,6 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
                 thumbColor="#FFFFFF"
               />
             </View>
-
-            <View style={styles.itemDivider} />
-
-            {/* Send Test Notification Action */}
-            <TouchableOpacity
-              style={styles.testNotificationRow}
-              onPress={handleSendTest}
-              disabled={isSendingTest}
-              activeOpacity={0.75}
-            >
-              <View style={styles.testIconBox}>
-                <Bell size={15} color="#FF5B00" strokeWidth={2.2} />
-              </View>
-              <View style={styles.testTextCol}>
-                <Text style={styles.testTitle}>Send Test Reminder</Text>
-                <Text style={styles.testSubtitle}>
-                  {testSentMessage || 'Tap to test device sound, vibration & banner'}
-                </Text>
-              </View>
-              <View style={styles.testButtonBadge}>
-                <Text style={styles.testButtonBadgeText}>
-                  {isSendingTest ? 'Sending...' : 'Test'}
-                </Text>
-              </View>
-            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -428,7 +404,7 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled
                 onScroll={handleHourScroll}
-                onMomentumScrollEnd={handleHourScroll}
+                onMomentumScrollEnd={handleHourSnap}
                 scrollEventThrottle={16}
                 ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
                 ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
@@ -463,7 +439,7 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled
                 onScroll={handleMinuteScroll}
-                onMomentumScrollEnd={handleMinuteScroll}
+                onMomentumScrollEnd={handleMinuteSnap}
                 scrollEventThrottle={16}
                 ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
                 ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
@@ -498,7 +474,7 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled
                 onScroll={handlePeriodScroll}
-                onMomentumScrollEnd={handlePeriodScroll}
+                onMomentumScrollEnd={handlePeriodSnap}
                 scrollEventThrottle={16}
                 ListHeaderComponent={<View style={{ height: ITEM_HEIGHT }} />}
                 ListFooterComponent={<View style={{ height: ITEM_HEIGHT }} />}
@@ -831,46 +807,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
-  },
-  testNotificationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  testIconBox: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: '#FFF0E6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  testTextCol: {
-    flex: 1,
-    paddingRight: 8,
-  },
-  testTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#2A1810',
-  },
-  testSubtitle: {
-    fontSize: 11,
-    color: '#8C7B73',
-    marginTop: 1,
-  },
-  testButtonBadge: {
-    backgroundColor: '#FFF0E6',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FFD4BF',
-  },
-  testButtonBadgeText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#FF5B00',
   },
 });
