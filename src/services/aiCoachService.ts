@@ -37,7 +37,7 @@ import { APP_CONFIG } from '../config/appConfig';
 const GEMINI_DIRECT_API_KEY = APP_CONFIG.GEMINI_API_KEY;
 
 // Active Gemini Model
-const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 /**
  * Builds a strict multi-turn contents payload starting with user turn and alternating roles
@@ -179,25 +179,40 @@ If the user did not explicitly ask for a food recommendation, do NOT include the
     }
   }
 
-  // 2. Supabase Edge Function Fallback
+  // 2. Supabase Edge Function (Deployed as 'rapid-responder', fallback to 'ask-coach')
   try {
-    const { data: edgeData, error: edgeError } = await supabase.functions.invoke('ask-coach', {
-      body: {
-        userPrompt,
-        context: {
-          profile,
-          todayCalories,
-          todayProtein,
-          todayCarbs,
-          todayFat,
-          loggedMeals,
-          calorieTarget,
-          proteinTarget,
-          remainingCals,
-          remainingProt,
-        },
+    const edgePayload = {
+      userPrompt,
+      context: {
+        profile,
+        todayCalories,
+        todayProtein,
+        todayCarbs,
+        todayFat,
+        loggedMeals,
+        calorieTarget,
+        proteinTarget,
+        remainingCals,
+        remainingProt,
       },
-    });
+    };
+
+    let edgeData: any = null;
+    let edgeError: any = null;
+
+    // A. Attempt primary deployed slug: 'rapid-responder'
+    const resA = await supabase.functions.invoke('rapid-responder', { body: edgePayload });
+    edgeData = resA.data;
+    edgeError = resA.error;
+
+    // B. Fallback to 'ask-coach' if not found
+    if (edgeError) {
+      const resB = await supabase.functions.invoke('ask-coach', { body: edgePayload });
+      if (!resB.error && resB.data) {
+        edgeData = resB.data;
+        edgeError = null;
+      }
+    }
 
     if (!edgeError && edgeData?.reply) {
       return parseCoachResponse(edgeData.reply);

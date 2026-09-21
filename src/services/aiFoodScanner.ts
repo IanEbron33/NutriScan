@@ -141,19 +141,35 @@ export const analyzeFoodImages = async (
 
   const cleanUserNotes = userNotes && userNotes.trim().length > 0 ? userNotes.trim() : '';
 
-  // 2. Primary Engine: Supabase Edge Function (Secure Secret via Deno.env.get("GEMINI_API_KEY"))
+  // 2. Primary Engine: Supabase Edge Function (Deployed as 'dynamic-handler', fallback to 'scan-food')
+  const payload = {
+    images: imageParts.map((p) => ({
+      base64: p.inline_data.data,
+      mimeType: p.inline_data.mime_type,
+    })),
+    imageBase64: imageParts[0]?.inline_data?.data,
+    imageMimeType: 'image/jpeg',
+    userNotes: cleanUserNotes || undefined,
+  };
+
   try {
-    const { data: edgeData, error: edgeError } = await supabase.functions.invoke('scan-food', {
-      body: {
-        images: imageParts.map((p) => ({
-          base64: p.inline_data.data,
-          mimeType: p.inline_data.mime_type,
-        })),
-        imageBase64: imageParts[0]?.inline_data?.data,
-        imageMimeType: 'image/jpeg',
-        userNotes: cleanUserNotes || undefined,
-      },
-    });
+    let edgeData: any = null;
+    let edgeError: any = null;
+
+    // A. Attempt primary deployed slug: 'dynamic-handler'
+    const resA = await supabase.functions.invoke('dynamic-handler', { body: payload });
+    edgeData = resA.data;
+    edgeError = resA.error;
+
+    // B. If 'dynamic-handler' not found or failed, try 'scan-food'
+    if (edgeError) {
+      console.warn('[aiFoodScanner] dynamic-handler notice, trying scan-food fallback:', edgeError.message || edgeError);
+      const resB = await supabase.functions.invoke('scan-food', { body: payload });
+      if (!resB.error && resB.data) {
+        edgeData = resB.data;
+        edgeError = null;
+      }
+    }
 
     if (edgeError) {
       edgeErrorMessage = edgeError.message || JSON.stringify(edgeError);
@@ -224,7 +240,7 @@ Return ONLY valid JSON with no markdown backticks or explanation.`;
         },
       ];
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
