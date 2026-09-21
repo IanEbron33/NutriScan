@@ -6,7 +6,10 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  LogBox,
 } from 'react-native';
+
+LogBox.ignoreLogs(['[expo-av]: Expo AV has been deprecated']);
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/context/AuthContext';

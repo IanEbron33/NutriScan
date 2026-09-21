@@ -45,7 +45,7 @@ interface AppSettingsSubScreenProps {
 }
 
 const HOURS = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
-const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 const PERIODS: Array<'AM' | 'PM'> = ['AM', 'PM'];
 
 const ITEM_HEIGHT = 44;
@@ -150,12 +150,11 @@ export const AppSettingsSubScreen: React.FC<AppSettingsSubScreenProps> = ({
         hourListRef.current?.scrollToOffset({ offset: hIdx * ITEM_HEIGHT, animated: false });
       }
 
-      // Snap to nearest 5-minute step
+      // Snap to exact minute
       let mIdx = MINUTES.indexOf(m);
       if (mIdx === -1) {
-        const numM = parseInt(m, 10) || 0;
-        const roundedM = String(Math.round(numM / 5) * 5 % 60).padStart(2, '0');
-        mIdx = MINUTES.indexOf(roundedM);
+        const numM = Math.max(0, Math.min(59, parseInt(m, 10) || 0));
+        mIdx = numM;
       }
       if (mIdx !== -1) {
         minuteListRef.current?.scrollToOffset({ offset: mIdx * ITEM_HEIGHT, animated: false });

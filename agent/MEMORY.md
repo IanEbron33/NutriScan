@@ -40,11 +40,20 @@
 - **Audio Feedback Engine (`expo-av`)**:
   - Guarded dynamic module loader (`getAudioModule`) inspecting `NativeModules.ExponentAV` for crash-proof APK boots across dev clients and standalone builds.
   - **`assets/sounds/meal_success.wav`**: 16-bit PCM 44.1kHz ascending 2-tone harmonic chime (E6 ➔ B6) triggered automatically via `playMealSuccessSound()` on any meal log, paired with a 40ms micro-haptic vibration.
-  - **`assets/sounds/bell_chime.wav`**: 16-bit PCM crystal harmonic bell chime for meal reminder notifications.
-- **Meal Reminders (`notificationService.ts`)**:
-  - Expo notification channel `meal-reminders` with background alarm permissions (`RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM`, `POST_NOTIFICATIONS`, `VIBRATE`).
-  - In-app active reminder timer checking scheduled SQLite reminder times every 15s.
-  - `MealReminderAlertModal.tsx`: Custom warm pop-up alert with 1-tap "Log Meal Now" trigger.
+  - **`assets/sounds/bell_chime.wav`**: 16-bit PCM crystal harmonic bell chime for meal reminder notifications and target hit milestones.
+- **Target Hit Celebration Engine (`notificationService.ts` & `localDatabase.ts`)**:
+  - **Sensory Feedback**: Combines the crystal bell chime (`bell_chime.wav`) with an upbeat double-pulse haptic vibration (`[0, 60, 50, 90]ms`) and a compact floating toast banner (`TargetHitToast.tsx`).
+  - **Date-Stamped SQLite Persistence (`local_daily_celebrations`)**: Tracks `date_str`, `calories`, `protein`, `carbs`, `fats`.
+  - **Single Daily Celebration & Startup Protection**: Silently marks targets already met upon startup so app launches never trigger duplicate celebrations. Celebrates only once per target per calendar day.
+  - **Midnight Auto-Reset**: Keyed by local calendar date `YYYY-MM-DD`, resetting targets automatically every midnight with zero background cron jobs.
+- **Meal Reminders & Native Push Notification Engine (`notificationService.ts`)**:
+  - Safe Expo SDK 54 New Architecture (`newArchEnabled: true`) native module loader for `expo-notifications`.
+  - Android notification channel `meal-reminders` configured with `AndroidImportance.MAX` for heads-up drop-down banners, vibration pattern `[0, 300, 200, 300]`, and `#FF5B00` light color.
+  - Foreground notification presentation handler configured (`shouldShowBanner: true`, `shouldShowList: true`, `shouldPlaySound: true`).
+  - Native offline recurring alarms scheduled via `SchedulableTriggerInputTypes.DAILY` (`hour`, `minute`, `channelId: 'meal-reminders'`).
+  - Proactive runtime permission management (`checkNotificationPermissions`, `requestNotificationPermissions`) for Android 13+ (`POST_NOTIFICATIONS`).
+  - **Instant Test Feature**: Interactive "Send Test Reminder" button in `AppSettingsSubScreen.tsx` for immediate verification of sounds, vibration, and banner on device.
+  - Custom in-app alert modal (`MealReminderAlertModal.tsx`) as foreground fallback with 1-tap "Log Meal Now".
 
 ## 5. Dynamic Micronutrients & "View All" Sheet
 - **Live Home Screen Snapshot**:
@@ -83,8 +92,20 @@
   - Full codebase audit: 100% zero default alert dialogs, zero emoji icons (all Lucide vectors), clean Metro transform AST, and complete EAS `preview` APK profile (`"buildType": "apk"`).
   - **Secure GitHub Workflow & Central Config (`src/config/appConfig.ts`)**: Removed raw API keys from git-tracked files, relying on EAS cloud environment variables and central fallback store.
   - **Custom `.easignore`**: Configured build archive rules to preserve necessary build files.
+- **Phase 7 (Target Hit Daily Reset & Celebration Engine)**:
+  - **SQLite Daily Celebrations Table (`local_daily_celebrations`)**: Persists daily celebrations by date string (`YYYY-MM-DD`).
+  - **Startup Hydration Guard**: Automatically suppresses re-celebrations when reopening the app.
+  - **Sensory Combination**: Bell chime (`bell_chime.wav`) + double-pulse vibration + compact single-line toast (`TargetHitToast.tsx`).
+  - **Midnight Auto-Reset**: Resets targets automatically at midnight with no background workers needed.
+  - **Visual Completion States**: Forest Green (`#2E7D32`) check badges, progress bars, and circular gauge arc transitions.
+- **Phase 8 (Native Push Notifications & Meal Reminders Engine)**:
+  - **Expo SDK 54 Native Architecture Compatibility**: Repaired module loader in `notificationService.ts` for React Native 0.81 New Architecture.
+  - **Android Heads-Up Banners**: Configured `meal-reminders` channel with `AndroidImportance.MAX` and vibration.
+  - **Proactive Permission Flow**: Automatically checks and prompts for Android 13+ `POST_NOTIFICATIONS` permission with in-app banner fallback.
+  - **Instant Test Reminder Button**: Added interactive test trigger in `AppSettingsSubScreen.tsx` for immediate verification on device.
 
 ## 7. Next Recommended Milestones
-- **Phase 7**: Barcode & Nutrition Label UPC scanner.
-- **Phase 8**: Weekly / Monthly Nutrition Insights & Trends Charts.
-- **Phase 9**: Custom Water Intake Tracker widget.
+- **Phase 9**: Barcode & Nutrition Label UPC scanner.
+- **Phase 10**: Weekly / Monthly Nutrition Insights & Trends Charts.
+- **Phase 11**: Custom Water Intake Tracker widget.
+
